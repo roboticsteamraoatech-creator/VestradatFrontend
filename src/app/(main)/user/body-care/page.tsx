@@ -155,7 +155,7 @@ const BodyCarePage = () => {
       if (response.success) {
         // console.log("product", product)
         // console.log("response", response.data)
-        setSelectedProduct(response.data as ExtendedPublicProductDetails);
+        setSelectedProduct(response.data as unknown as ExtendedPublicProductDetails);
         setSelectedSubService(null);
       } else {
         setError(response.message || 'Failed to fetch product details');

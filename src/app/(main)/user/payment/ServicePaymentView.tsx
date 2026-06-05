@@ -126,7 +126,7 @@ const ServicePaymentView: React.FC<ServicePaymentProps> = ({ initialOrderData })
         customerName: orderData.customerName,
         customerPhone: orderData.customerPhone || '',
         paymentType: selectedPaymentType,
-        itemType: 'service',
+        itemType: 'service' as const,
         platform: 'web' as const,
         bookingDate,
         bookingTime: selectedSlot.time,
