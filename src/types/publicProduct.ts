@@ -71,11 +71,16 @@ export interface PublicProductDetails {
     };
     pricing: {
       originalPrice: number;
-      discountedPrice: number;
+      priceAfterDiscount: number;
+      platformChargePercentage: number;
+      platformChargeAmount: number;
+      finalPrice: number;
       youSave: number;
       discount: number;
+      discountAmount: number;
       upfrontPaymentPercentage: number;
       upfrontPaymentAmount: number;
+      remainingBalance: number;
     };
     productInfo: {
       category: string;
