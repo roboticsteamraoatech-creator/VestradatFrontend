@@ -199,7 +199,7 @@ const BodyCarePage = () => {
     } : {
       productId: product.product.id,
       name: product.product.name,
-      price: product.product.pricing.discountedPrice,
+      price: product.product.pricing.finalPrice,
       upfrontPayment: product.product.pricing.upfrontPaymentAmount,
       organizationId: product.product.organizationId,
       organizationName: product.serviceProvider.producer,
