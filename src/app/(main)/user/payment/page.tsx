@@ -36,7 +36,6 @@ const PaymentPage = () => {
     );
   }
 
-  console.log(orderData)
 
   if (!orderData) {
     return (
@@ -47,7 +46,7 @@ const PaymentPage = () => {
   }
 
   // Dynamically route based on itemType
-  if (orderData.itemType === 'service') {
+  if (orderData.product.itemType === 'service') {
     return <ServicePaymentView initialOrderData={orderData} />;
   }
 

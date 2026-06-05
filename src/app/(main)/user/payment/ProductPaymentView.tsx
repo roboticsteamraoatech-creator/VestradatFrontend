@@ -79,13 +79,6 @@ const ProductPaymentView: React.FC<ProductPaymentProps> = ({
     const customerName = (user as any)?.fullName || "";
     const customerPhone = (user as any)?.phoneNumber || "";
     
-    console.log(customerEmail)
-    console.log(customerName)
-    console.log(initialOrderData)
-    console.log(initialOrderData.product.id)
-    console.log(organizationId)
-    console.log(organizationName)
-
     try {
       if (
         !initialOrderData.product.id ||

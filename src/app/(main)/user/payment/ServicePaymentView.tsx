@@ -24,13 +24,27 @@ const ServicePaymentView: React.FC<ServicePaymentProps> = ({ initialOrderData })
 
   const [loading, setLoading] = useState(false);
   const [error, setError] = useState<string | null>(null);
-  const [selectedPaymentType, setSelectedPaymentType] = useState<'upfront' | 'remaining' | 'full'>('upfront');
-  const [orderData, setOrderData] = useState<any>({
-    ...initialOrderData,
-    customerEmail: '',
-    customerName: '',
-    customerPhone: '',
-  });
+
+  // Safely extract constants out of the structured product object payload
+  const serviceProduct = initialOrderData?.product || {};
+  const pricing = serviceProduct?.pricing || {};
+
+  const productId = serviceProduct.id || "";
+  const organizationId = serviceProduct.organizationId || "";
+  const organizationName = initialOrderData?.serviceProvider?.producer || "Service Provider";
+  const serviceName = serviceProduct.name || serviceProduct.title || "Service";
+
+  const {
+    finalPrice = 0,
+    upfrontPaymentPercentage = 0,
+    upfrontPaymentAmount = 0,
+    remainingBalance = 0,
+  } = pricing;
+
+  // Since upfront percentage can be 0, default to "full" if no upfront deposit is allowed
+  const [selectedPaymentType, setSelectedPaymentType] = useState<'upfront' | 'remaining' | 'full'>(
+    upfrontPaymentPercentage > 0 ? 'upfront' : 'full'
+  );
 
   // Booking details
   const [bookingDate, setBookingDate] = useState('');
@@ -38,41 +52,35 @@ const ServicePaymentView: React.FC<ServicePaymentProps> = ({ initialOrderData })
   const [selectedSlot, setSelectedSlot] = useState<TimeSlot | null>(null);
   const [loadingSlots, setLoadingSlots] = useState(false);
 
-  // Contact metadata details
-  const [bookedPersonName, setBookedPersonName] = useState('');
-  const [bookedPersonEmail, setBookedPersonEmail] = useState('');
-  const [bookedPersonPhone, setBookedPersonPhone] = useState('');
+  // Contact metadata details (Pre-seeded cleanly from initialOrderData fallback data defaults)
+  const [bookedPersonName, setBookedPersonName] = useState(initialOrderData?.customerName || '');
+  const [bookedPersonEmail, setBookedPersonEmail] = useState(initialOrderData?.customerEmail || '');
+  const [bookedPersonPhone, setBookedPersonPhone] = useState(initialOrderData?.customerPhone || '');
   const [bookedPersonAge, setBookedPersonAge] = useState('');
   const [bookedPersonNotes, setBookedPersonNotes] = useState('');
 
   useEffect(() => {
     if (user) {
-      setOrderData((prev: any) => ({
-        ...prev,
-        customerEmail: (user as any).email || '',
-        customerName: (user as any).fullName || '',
-        customerPhone: (user as any).phoneNumber || '',
-      }));
-      setBookedPersonName((user as any).fullName || '');
-      setBookedPersonEmail((user as any).email || '');
-      setBookedPersonPhone((user as any).phoneNumber || '');
+      setBookedPersonName((user as any).fullName || initialOrderData?.customerName || '');
+      setBookedPersonEmail((user as any).email || initialOrderData?.customerEmail || '');
+      setBookedPersonPhone((user as any).phoneNumber || initialOrderData?.customerPhone || '');
     }
-  }, [user]);
+  }, [user, initialOrderData]);
 
-  // Handle live calculation parameters update queries
+  // Handle live allocation calculation queries matching backend API structures 
   useEffect(() => {
-    if (!bookingDate || !orderData.organizationId) return;
+    if (!bookingDate || !organizationId) return;
 
     setLoadingSlots(true);
     setSlots([]);
     setSelectedSlot(null);
 
     const params = new URLSearchParams({
-      organizationId: orderData.organizationId,
+      organizationId: organizationId,
       date: bookingDate,
     });
-    if (orderData.productId && /^[0-9a-fA-F]{24}$/.test(orderData.productId)) {
-      params.set('serviceId', orderData.productId);
+    if (productId && /^[0-9a-fA-F]{24}$/.test(productId)) {
+      params.set('serviceId', productId);
     }
 
     fetch(`${BASE_URL}/api/orders/public/available-slots?${params}`)
@@ -80,16 +88,21 @@ const ServicePaymentView: React.FC<ServicePaymentProps> = ({ initialOrderData })
       .then(res => { if (res.success) setSlots(res.data.slots); })
       .catch(console.error)
       .finally(() => setLoadingSlots(false));
-  }, [bookingDate, orderData.organizationId, orderData.productId]);
+  }, [bookingDate, organizationId, productId]);
 
   const fmt = (n: number) => new Intl.NumberFormat('en-NG', { style: 'currency', currency: 'NGN', minimumFractionDigits: 0, maximumFractionDigits: 0 }).format(n);
 
   const handleInitiatePayment = async () => {
     setLoading(true);
     setError(null);
+
+    const customerEmail = (user as any)?.email || initialOrderData?.customerEmail || '';
+    const customerName = (user as any)?.fullName || initialOrderData?.customerName || '';
+    const customerPhone = (user as any)?.phoneNumber || initialOrderData?.customerPhone || '';
+
     try {
-      if (!orderData.productId || !orderData.organizationId || !orderData.customerEmail || !orderData.customerName) {
-        setError('Missing required data information fields.');
+      if (!productId || !organizationId || !customerEmail || !customerName) {
+        setError('Missing required data info parameters. Please log in.');
         return;
       }
       if (!bookingDate || !selectedSlot) {
@@ -106,7 +119,7 @@ const ServicePaymentView: React.FC<ServicePaymentProps> = ({ initialOrderData })
         name: bookedPersonName.trim(),
         firstName: parts[0] || bookedPersonName,
         lastName: parts.slice(1).join(' ') || parts[0] || '',
-        email: bookedPersonEmail || orderData.customerEmail,
+        email: bookedPersonEmail || customerEmail,
         phone: bookedPersonPhone || undefined,
         age: bookedPersonAge || undefined,
         notes: bookedPersonNotes || undefined,
@@ -115,22 +128,22 @@ const ServicePaymentView: React.FC<ServicePaymentProps> = ({ initialOrderData })
       }];
 
       const paymentData = {
-        productId: orderData.productId,
-        productName: orderData.productName || orderData.name,
-        organizationId: orderData.organizationId,
-        organizationName: orderData.organizationName,
-        productPrice: orderData.productPrice || orderData.price,
-        upfrontPercentage: orderData.upfrontPercentage || 10,
+        productId: productId,
+        productName: serviceName,
+        organizationId: organizationId,
+        organizationName: organizationName,
+        productPrice: finalPrice,
+        upfrontPercentage: upfrontPaymentPercentage,
         userId: (user as any)?.id,
-        customerEmail: orderData.customerEmail,
-        customerName: orderData.customerName,
-        customerPhone: orderData.customerPhone || '',
+        customerEmail,
+        customerName,
+        customerPhone,
         paymentType: selectedPaymentType,
         itemType: 'service' as const,
         platform: 'web' as const,
         bookingDate,
         bookingTime: selectedSlot.time,
-        bookingLocation: initialOrderData.bookingLocation || { type: 'merchant_location' },
+        bookingLocation: initialOrderData.serviceLocations?.[0] || { type: 'merchant_location' },
         bookedForPersons,
         redirectUrl: `${window.location.origin}/user/payment/callback`,
       };
@@ -147,9 +160,6 @@ const ServicePaymentView: React.FC<ServicePaymentProps> = ({ initialOrderData })
       setLoading(false);
     }
   };
-
-  const productPrice = orderData.productPrice || orderData.price || 0;
-  const upfrontPayment = orderData.upfrontPayment || (productPrice * (orderData.upfrontPercentage || 10)) / 100;
 
   return (
     <div className="min-h-screen bg-gray-50">
@@ -227,20 +237,23 @@ const ServicePaymentView: React.FC<ServicePaymentProps> = ({ initialOrderData })
                 </h3>
                 <div className="space-y-3">
                   {[
-                    { value: 'upfront' as const, label: 'Upfront Deposit', desc: `Pay ${orderData.upfrontPercentage || 10}% balance (${fmt(upfrontPayment)})` },
-                    { value: 'remaining' as const, label: 'Remaining Installment', desc: `Pay remaining balance (${fmt(productPrice - upfrontPayment)})` },
-                    { value: 'full' as const, label: 'Full Settlement', desc: `Pay total upfront completely (${fmt(productPrice)})` }
-                  ].map(opt => (
-                    <label key={opt.value} className={`flex items-center p-4 border rounded-lg cursor-pointer transition-colors ${
-                      selectedPaymentType === opt.value ? 'border-[#5d2a8b] bg-purple-50' : 'border-gray-200'
-                    }`}>
-                      <input type="radio" name="paymentType" value={opt.value} checked={selectedPaymentType === opt.value} onChange={e => setSelectedPaymentType(e.target.value as any)} className="text-[#5d2a8b]" />
-                      <div className="ml-3">
-                        <div className="font-medium text-gray-900 text-sm">{opt.label}</div>
-                        <div className="text-xs text-gray-500">{opt.desc}</div>
-                      </div>
-                    </label>
-                  ))}
+                    { value: 'full' as const, label: 'Full Settlement', desc: `Pay total upfront completely (${fmt(finalPrice)})` },
+                    { value: 'upfront' as const, label: 'Upfront Deposit', desc: `Pay ${upfrontPaymentPercentage}% deposit (${fmt(upfrontPaymentAmount)})` },
+                    { value: 'remaining' as const, label: 'Remaining Installment', desc: `Pay remaining balance (${fmt(remainingBalance)})` }
+                  ]
+                    // Dynamically filters out Upfront options if upfront payment criteria is 0%
+                    .filter(opt => (opt.value !== 'upfront' && opt.value !== 'remaining') || upfrontPaymentPercentage > 0)
+                    .map(opt => (
+                      <label key={opt.value} className={`flex items-center p-4 border rounded-lg cursor-pointer transition-colors ${
+                        selectedPaymentType === opt.value ? 'border-[#5d2a8b] bg-purple-50' : 'border-gray-200'
+                      }`}>
+                        <input type="radio" name="paymentType" value={opt.value} checked={selectedPaymentType === opt.value} onChange={e => setSelectedPaymentType(e.target.value as any)} className="text-[#5d2a8b]" />
+                        <div className="ml-3">
+                          <div className="font-medium text-gray-900 text-sm">{opt.label}</div>
+                          <div className="text-xs text-gray-500">{opt.desc}</div>
+                        </div>
+                      </label>
+                    ))}
                 </div>
               </div>
 
