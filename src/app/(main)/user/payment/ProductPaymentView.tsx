@@ -66,24 +66,29 @@ const ProductPaymentView: React.FC<ProductPaymentProps> = ({
     initialOrderData.name ||
     initialOrderData.product?.name ||
     "Product";
-  const organizationId = initialOrderData.organizationId || "";
-  const organizationName =
-    initialOrderData.organizationName || "Service Provider";
-  const bookingLocation = initialOrderData.bookingLocation || {
-    type: "merchant_location",
-  };
+  const organizationId = initialOrderData.product.organizationId || "";
+  const organizationName = initialOrderData.organizationName || "Service Provider";
+  const bookingLocation = initialOrderData.bookingLocation || {type: "merchant_location",};
 
   const handleInitiatePayment = async () => {
     setLoading(true);
     setError(null);
 
+    
     const customerEmail = (user as any)?.email || "";
     const customerName = (user as any)?.fullName || "";
     const customerPhone = (user as any)?.phoneNumber || "";
+    
+    console.log(customerEmail)
+    console.log(customerName)
+    console.log(initialOrderData)
+    console.log(initialOrderData.product.id)
+    console.log(organizationId)
+    console.log(organizationName)
 
     try {
       if (
-        !initialOrderData.productId ||
+        !initialOrderData.product.id ||
         !organizationId ||
         !customerEmail ||
         !customerName
@@ -95,7 +100,7 @@ const ProductPaymentView: React.FC<ProductPaymentProps> = ({
       }
 
       const paymentData = {
-        productId: initialOrderData.productId,
+        productId: initialOrderData.product.id,
         productName: productName,
         organizationId: organizationId,
         organizationName: organizationName,
