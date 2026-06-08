@@ -6,6 +6,11 @@ import { useRouter } from 'next/navigation';
 import { useAuth } from '@/api/hooks/useAuth';
 import OrderService from '@/services/OrderService';
 
+// Import the Calendar Component and its default style rules
+import Calendar from 'react-calendar';
+// @ts-ignore
+import 'react-calendar/dist/Calendar.css';
+
 const BASE_URL = 'https://datacapture-backend.onrender.com';
 
 interface TimeSlot {
@@ -60,6 +65,13 @@ const ServicePaymentView: React.FC<ServicePaymentProps> = ({ initialOrderData })
   const [selectedSlot, setSelectedSlot] = useState<TimeSlot | null>(null);
   const [loadingSlots, setLoadingSlots] = useState(false);
 
+  // Calendar State Trackers for Available Days Pipeline
+  const [allowedDates, setAllowedDates] = useState<string[]>([]);
+  const [currentMonthYear, setCurrentMonthYear] = useState({
+    month: new Date().getMonth() + 1,
+    year: new Date().getFullYear()
+  });
+
   // Step 3: Primary Customer Details & Guests
   const [customerName, setCustomerName] = useState(initialOrderData?.customerName || '');
   const [customerEmail, setCustomerEmail] = useState(initialOrderData?.customerEmail || '');
@@ -82,6 +94,27 @@ const ServicePaymentView: React.FC<ServicePaymentProps> = ({ initialOrderData })
     }
   }, [user, initialOrderData]);
 
+  // Fetch available days dynamically based on the calendar view month window
+  useEffect(() => {
+    if (!organizationId) return;
+
+    const queryParams = new URLSearchParams({
+      organizationId,
+      month: currentMonthYear.month.toString(),
+      year: currentMonthYear.year.toString()
+    });
+    if (productId) queryParams.set('serviceId', productId);
+
+    fetch(`${BASE_URL}/api/orders/public/available-days?${queryParams.toString()}`)
+      .then(r => r.json())
+      .then(res => {
+        if (res.success && res.data?.availableDays) {
+          setAllowedDates(res.data.availableDays);
+        }
+      })
+      .catch(console.error);
+  }, [currentMonthYear, organizationId, productId]);
+
   // Fetch available slots when a booking date is selected
   useEffect(() => {
     if (!bookingDate || !organizationId) return;
@@ -101,6 +134,33 @@ const ServicePaymentView: React.FC<ServicePaymentProps> = ({ initialOrderData })
       .catch(console.error)
       .finally(() => setLoadingSlots(false));
   }, [bookingDate, organizationId, productId, currentStep]);
+
+  // Disable dates if they aren't provided by the API array response mapping
+  const isTileDisabled = ({ date, view }: { date: Date; view: string }) => {
+    if (view === 'month') {
+      const year = date.getFullYear();
+      const month = String(date.getMonth() + 1).padStart(2, '0');
+      const day = String(date.getDate()).padStart(2, '0');
+      const localISODate = `${year}-${month}-${day}`;
+      
+      const today = new Date();
+      today.setHours(0, 0, 0, 0);
+      if (date < today) return true;
+
+      return !allowedDates.includes(localISODate);
+    }
+    return false;
+  };
+
+  // Track calendar view tracking changes to reload month data dependencies
+  const handleCalendarNavigate = ({ activeStartDate }: { activeStartDate: Date | null }) => {
+    if (activeStartDate) {
+      setCurrentMonthYear({
+        month: activeStartDate.getMonth() + 1,
+        year: activeStartDate.getFullYear()
+      });
+    }
+  };
 
   const fmt = (n: number) => new Intl.NumberFormat('en-NG', { style: 'currency', currency: 'NGN', minimumFractionDigits: 0, maximumFractionDigits: 0 }).format(n);
 
@@ -161,7 +221,7 @@ const ServicePaymentView: React.FC<ServicePaymentProps> = ({ initialOrderData })
   };
 
   const splitName = (fullName: string) => {
-  const parts = fullName.trim().split(/\s+/);
+    const parts = fullName.trim().split(/\s+/);
     return {
       firstName: parts[0] || fullName,
       lastName: parts.slice(1).join(' ') || parts[0] || '',
@@ -173,18 +233,16 @@ const ServicePaymentView: React.FC<ServicePaymentProps> = ({ initialOrderData })
     setLoading(true);
     setError(null);
     if (!bookingDate || !selectedSlot || selectedSlot === null) {
-    setError('Please select a valid booking date and pick a time slot option.');
-    setLoading(false);
-    return;
-  }
+      setError('Please select a valid booking date and pick a time slot option.');
+      setLoading(false);
+      return;
+    }
 
-  // TypeScript now officially knows 'selectedSlot' is 100% a valid TimeSlot object here safely.
-  
-  if (!customerName.trim() || !customerEmail.trim() || !customerPhone.trim()) {
-    setError('Please complete all required primary client identification parameters.');
-    setLoading(false);
-    return;
-  }
+    if (!customerName.trim() || !customerEmail.trim() || !customerPhone.trim()) {
+      setError('Please complete all required primary client identification parameters.');
+      setLoading(false);
+      return;
+    }
 
     try {
       // Create main booking attendee block
@@ -201,15 +259,15 @@ const ServicePaymentView: React.FC<ServicePaymentProps> = ({ initialOrderData })
       // Transform guest records into the required array format
       const operationalGuests = guests.map(g => {
         const guestNameParts = splitName(g.name);
-          return {
-            name: g.name.trim(),
-            firstName: guestNameParts.firstName,
-            lastName: guestNameParts.lastName,
-            email: g.email.trim() || undefined,
-            slotDateTime: g.selectedSlot?.datetime || "",
-            isMainBooker: false
-          };
-        });
+        return {
+          name: g.name.trim(),
+          firstName: guestNameParts.firstName,
+          lastName: guestNameParts.lastName,
+          email: g.email.trim() || undefined,
+          slotDateTime: g.selectedSlot?.datetime || "",
+          isMainBooker: false
+        };
+      });
 
       const bookedForPersons = [mainPerson, ...operationalGuests];
 
@@ -303,13 +361,23 @@ const ServicePaymentView: React.FC<ServicePaymentProps> = ({ initialOrderData })
                     <CalendarIcon className="text-[#5d2a8b] w-5 h-5" />
                     <h3 className="font-bold text-gray-900">Step 1: Choose Available Booking Date</h3>
                   </div>
-                  <input 
-                    type="date" 
-                    value={bookingDate} 
-                    onChange={e => setBookingDate(e.target.value)}
-                    min={new Date().toISOString().split('T')[0]}
-                    className="w-full px-4 py-3 border-2 border-gray-300 rounded-lg text-sm focus:ring-2 focus:ring-[#5d2a8b] focus:outline-none" 
-                  />
+                  
+                  <div className="custom-calendar-container flex justify-center bg-white p-4 rounded-xl border border-gray-100 shadow-sm">
+                    <Calendar 
+                      onActiveStartDateChange={handleCalendarNavigate}
+                      tileDisabled={isTileDisabled}
+                      onClickDay={(value) => {
+                        const offsetDate = new Date(value.getTime() - value.getTimezoneOffset() * 60000);
+                        setBookingDate(offsetDate.toISOString().split('T')[0]);
+                      }}
+                      value={bookingDate ? new Date(bookingDate) : null}
+                      className="w-full border-0 bg-transparent text-sm text-gray-800"
+                    />
+                  </div>
+                  {bookingDate && (
+                    <p className="text-xs font-bold text-green-600">✓ Selected: {bookingDate}</p>
+                  )}
+
                   <button 
                     disabled={!bookingDate}
                     onClick={() => setCurrentStep(2)}
@@ -441,26 +509,28 @@ const ServicePaymentView: React.FC<ServicePaymentProps> = ({ initialOrderData })
                   <div className="space-y-3">
                     {[
                       { type: 'merchant_location', label: "Merchant's Registered Location", desc: initialOrderData?.serviceLocations?.[0]?.address || "Use service headquarters address" },
-                      { type: 'customer_address', label: "My Profile Address", desc: "Use saved customer address details on record" },
-                      { type: 'new_address', label: "Custom New Address", desc: "Manually input execution address parameters" },
-                      { type: 'whatsapp_location', label: "WhatsApp Live Location", desc: "Paste Google Maps location link shared via WhatsApp" }
+                      { type: 'customer_address', label: "My registered address", desc: "Uses your saved address from profile" },
+                      { type: 'new_address', label: "New address", desc: "Enter a new address for this booking" },
+                      { type: 'whatsapp_location', label: "WhatsApp location link", desc: "Share location from WhatsApp" }
                     ].map((opt) => (
                       <label 
                         key={opt.type} 
                         className={`block p-4 border-2 rounded-xl cursor-pointer transition-all ${locationType === opt.type ? 'border-[#5d2a8b] bg-purple-50/50' : 'border-gray-200 hover:border-purple-200'}`}
                       >
-                        <div className="flex items-start gap-3">
+                        <div className="flex items-center justify-between gap-3">
+                          <div className="flex items-start gap-3">
+                            <div>
+                              <p className="text-sm font-bold text-gray-900">{opt.label}</p>
+                              <p className="text-xs text-gray-500 mt-1">{opt.desc}</p>
+                            </div>
+                          </div>
                           <input 
                             type="radio" 
                             name="locationType" 
                             checked={locationType === opt.type} 
                             onChange={() => setLocationType(opt.type as any)} 
-                            className="mt-1 text-[#5d2a8b] focus:ring-[#5d2a8b]" 
+                            className="h-5 w-5 text-[#5d2a8b] focus:ring-[#5d2a8b] border-gray-300" 
                           />
-                          <div>
-                            <p className="text-sm font-bold text-gray-900">{opt.label}</p>
-                            <p className="text-xs text-gray-500 mt-0.5">{opt.desc}</p>
-                          </div>
                         </div>
                       </label>
                     ))}
@@ -481,58 +551,203 @@ const ServicePaymentView: React.FC<ServicePaymentProps> = ({ initialOrderData })
                     </div>
                   )}
 
+                  {/* Static Information Alert Box Banner Element */}
+                  <div className="p-4 bg-white border border-purple-400 rounded-xl flex gap-3 items-start shadow-sm mt-8">
+                    <div className="w-5 h-5 rounded-full bg-[#5d2a8b] text-white flex items-center justify-center font-serif text-xs font-bold flex-shrink-0 mt-0.5">
+                      i
+                    </div>
+                    <div>
+                      <h4 className="text-sm font-bold text-[#5d2a8b]">Location Information</h4>
+                      <p className="text-xs text-gray-600 mt-1 leading-relaxed">
+                        The service provider will travel to your selected location. Make sure the address is accurate and accessible.
+                      </p>
+                    </div>
+                  </div>
+
                   <button 
                     disabled={validatingLocation}
                     onClick={handleValidateLocation}
-                    className="w-full mt-4 py-3 bg-[#5d2a8b] text-white rounded-lg font-semibold text-sm flex items-center justify-center gap-2"
+                    className="w-full mt-2 py-3 bg-[#5d2a8b] text-white rounded-lg font-semibold text-sm flex items-center justify-center gap-2 hover:bg-[#7a3aa3] transition-colors"
                   >
-                    {validatingLocation ? "Validating Location Link..." : "Validate and Review Order"}
+                    {validatingLocation ? "Validating Location Link..." : "Continue to Confirmation →"}
                   </button>
                 </div>
               )}
 
               {/* STEP 5: CONFIRM AND PAY */}
               {currentStep === 5 && (
-                <div className="space-y-4">
+                <div className="space-y-6">
                   <div className="flex items-center gap-2 border-b pb-2">
                     <CheckCircle className="text-green-600 w-5 h-5" />
                     <h3 className="font-bold text-gray-900">Step 5: Review & Complete Payment</h3>
                   </div>
 
-                  {/* Booking Recap Card */}
-                  <div className="bg-gray-50 border rounded-xl p-4 text-xs space-y-2 text-gray-700">
-                    <p><strong className="text-gray-900">Selected Service:</strong> {serviceName}</p>
-                    <p><strong className="text-gray-900">Appointment Date & Time:</strong> {bookingDate} @ {selectedSlot?.displayTime}</p>
-                    <p><strong className="text-gray-900">Total Attendees:</strong> {1 + guests.length} person(s) (1 Client {guests.length > 0 && `+ ${guests.length} Guest(s)`})</p>
-                    <p><strong className="text-gray-900">Target Venue:</strong> {locationType === 'merchant_location' ? "Merchant Headquarters" : locationType === 'new_address' ? customAddress : "Custom Location Link Provided"}</p>
+                  {/* 1. Booking Summary Card (Mimicking image_a534a0.png) */}
+                  <div className="border border-gray-200 rounded-xl p-5 bg-white space-y-4 shadow-sm">
+                    <h4 className="text-base font-bold text-gray-900">Booking Summary</h4>
+                    <div className="space-y-1">
+                      <h5 className="text-lg font-bold text-gray-900 leading-tight">{serviceName}</h5>
+                      <p className="text-sm text-purple-700 font-semibold">{organizationName}</p>
+                    </div>
+
+                    <div className="pt-2 space-y-3 text-sm text-gray-600 border-t border-gray-100">
+                      <div className="flex items-start gap-3">
+                        <CalendarIcon className="w-4 h-4 text-[#5d2a8b] mt-0.5 flex-shrink-0" />
+                        <p>
+                          <strong className="text-gray-700 font-medium">Date:</strong>{" "}
+                          {new Date(bookingDate).toLocaleDateString("en-NG", {
+                            weekday: "long",
+                            year: "numeric",
+                            month: "long",
+                            day: "numeric",
+                          })}
+                        </p>
+                      </div>
+                      <div className="flex items-start gap-3">
+                        <Clock className="w-4 h-4 text-[#5d2a8b] mt-0.5 flex-shrink-0" />
+                        <p>
+                          <strong className="text-gray-700 font-medium">Time:</strong>{" "}
+                          {selectedSlot?.displayTime} ({initialOrderData?.product?.bookingConfiguration?.slotDurationMinutes || 30} min)
+                        </p>
+                      </div>
+                      <div className="flex items-start gap-3">
+                        <MapPin className="w-4 h-4 text-[#5d2a8b] mt-0.5 flex-shrink-0" />
+                        <p className="leading-tight">
+                          <strong className="text-gray-700 font-medium">Location:</strong>{" "}
+                          {locationType === "merchant_location"
+                            ? initialOrderData?.serviceLocations?.[0]?.address || "Merchant Headquarters"
+                            : locationType === "new_address"
+                            ? customAddress
+                            : whatsappUrl}
+                        </p>
+                      </div>
+                      <div className="flex items-start gap-3">
+                        <User className="w-4 h-4 text-[#5d2a8b] mt-0.5 flex-shrink-0" />
+                        <p>
+                          <strong className="text-gray-700 font-medium">Customer:</strong> {customerName}
+                        </p>
+                      </div>
+                      <div className="flex items-start gap-3">
+                        <User className="w-4 h-4 text-[#5d2a8b] mt-0.5 flex-shrink-0" />
+                        <p>
+                          <strong className="text-gray-700 font-medium">Guests:</strong> {guests.length} guest(s)
+                        </p>
+                      </div>
+                    </div>
                   </div>
 
-                  {/* Payment Matrix Selection */}
-                  <div className="border-2 border-gray-100 rounded-xl p-4 space-y-3">
-                    <h4 className="text-xs font-bold text-gray-900 tracking-wide uppercase">Select Split Configuration Method</h4>
-                    {[
-                      { value: 'full' as const, label: 'Full Settlement', desc: `Pay full amount complete (${fmt(finalPrice * (1 + guests.length))})` },
-                      { value: 'upfront' as const, label: 'Upfront Deposit', desc: `Pay ${upfrontPaymentPercentage}% safety deposit (${fmt(upfrontPaymentAmount * (1 + guests.length))})` },
-                      { value: 'remaining' as const, label: 'Remaining Installment', desc: `Pay remaining balance (${fmt(remainingBalance * (1 + guests.length))})` }
-                    ]
-                      .filter(opt => (opt.value !== 'upfront' && opt.value !== 'remaining') || upfrontPaymentPercentage > 0)
-                      .map(opt => (
-                        <label key={opt.value} className={`flex items-center p-3 border rounded-lg cursor-pointer transition-all ${selectedPaymentType === opt.value ? 'border-[#5d2a8b] bg-purple-50/60' : 'border-gray-200'}`}>
-                          <input type="radio" name="paymentMethod" value={opt.value} checked={selectedPaymentType === opt.value} onChange={e => setSelectedPaymentType(e.target.value as any)} className="text-[#5d2a8b] focus:ring-[#5d2a8b]" />
-                          <div className="ml-3">
-                            <p className="font-bold text-gray-900 text-xs">{opt.label}</p>
-                            <p className="text-[11px] text-gray-500">{opt.desc}</p>
-                          </div>
-                        </label>
+                  {/* 2. Guest Details Display Cards (Mimicking image_a534a0.png) */}
+                  {guests.length > 0 && (
+                    <div className="space-y-3">
+                      <h4 className="text-sm font-bold text-gray-900 px-1">Guest Details</h4>
+                      {guests.map((guest, idx) => (
+                        <div key={guest.id} className="p-4 bg-purple-50/50 border border-purple-200 rounded-xl space-y-1">
+                          <p className="text-sm font-bold text-gray-900">Guest {idx + 1}: {guest.name}</p>
+                          {guest.email && <p className="text-xs text-gray-500">{guest.email}</p>}
+                          <p className="text-xs text-purple-700 font-medium">Time: {guest.selectedSlot?.displayTime}</p>
+                        </div>
                       ))}
+                    </div>
+                  )}
+
+                  {/* 3. Payment Options Matrix (Mimicking image_a534a7.png) */}
+                  <div className="space-y-3">
+                    <h4 className="text-sm font-bold text-gray-900 px-1">Payment Options</h4>
+                    <p className="text-xs text-gray-500 px-1 -mt-2">Choose how you'd like to pay for this booking</p>
+                    
+                    <div className="space-y-2.5">
+                      {[
+                        { 
+                          value: "full" as const, 
+                          label: "Pay Full Amount", 
+                          price: finalPrice * (1 + guests.length),
+                          desc: "Pay the complete amount now - No remaining balance" 
+                        },
+                        { 
+                          value: "upfront" as const, 
+                          label: `Pay ${upfrontPaymentPercentage}% Upfront`, 
+                          price: upfrontPaymentAmount * (1 + guests.length),
+                          desc: `Pay ${upfrontPaymentPercentage}% now, remaining ${fmt(remainingBalance * (1 + guests.length))} due later` 
+                        }
+                      ]
+                        .filter(opt => opt.value !== "upfront" || upfrontPaymentPercentage > 0)
+                        .map((opt) => (
+                          <label 
+                            key={opt.value} 
+                            className={`flex items-center justify-between p-4 border-2 rounded-xl cursor-pointer transition-all bg-white ${
+                              selectedPaymentType === opt.value ? "border-[#5d2a8b] bg-purple-50/20" : "border-gray-200 hover:border-purple-200"
+                            }`}
+                          >
+                            <div className="space-y-1">
+                              <div className="flex items-baseline gap-2">
+                                <p className="text-sm font-bold text-[#5d2a8b]">{opt.label}</p>
+                                <p className="text-sm font-bold text-gray-900">{fmt(opt.price)}</p>
+                              </div>
+                              <p className="text-xs text-gray-500">{opt.desc}</p>
+                            </div>
+                            <input 
+                              type="radio" 
+                              name="paymentMethodGroup" 
+                              value={opt.value} 
+                              checked={selectedPaymentType === opt.value} 
+                              onChange={e => setSelectedPaymentType(e.target.value as any)} 
+                              className="h-4 w-4 text-[#5d2a8b] focus:ring-[#5d2a8b] border-gray-300" 
+                            />
+                          </label>
+                        ))}
+                    </div>
                   </div>
 
-                  {/* Security Clearance Notice */}
-                  <div className="p-3 bg-gray-50 border border-gray-200 rounded-lg flex gap-3 items-start">
-                    <Lock className="w-4 h-4 text-green-600 mt-0.5 flex-shrink-0" />
+                  {/* 4. Pricing Breakdown Display Card (Mimicking image_a534c4.png & image_a534a7.png) */}
+                  <div className="border border-gray-200 rounded-xl p-5 bg-white space-y-4 shadow-sm">
+                    <h4 className="text-sm font-bold text-gray-900">Pricing Breakdown</h4>
+                    
+                    <div className="space-y-3 text-xs text-gray-600">
+                      <div className="flex justify-between items-center">
+                        <span>Base Service Price</span>
+                        <span className="font-semibold text-gray-900">{fmt(finalPrice)}</span>
+                      </div>
+                      <div className="flex justify-between items-center">
+                        <span>Number of Persons (You + {guests.length} guest)</span>
+                        <span className="font-semibold text-gray-900">{1 + guests.length} persons</span>
+                      </div>
+                      <div className="flex justify-between items-center pt-2 border-t border-gray-100 font-medium">
+                        <span>Total Service Price</span>
+                        <span className="text-gray-900">{fmt(finalPrice * (1 + guests.length))}</span>
+                      </div>
+                      
+                      <div className="flex justify-between items-center pt-2 border-t border-gray-100 text-gray-500">
+                        <span>{selectedPaymentType === "upfront" ? `${upfrontPaymentPercentage}% Upfront Deposit` : "Full Payment"}</span>
+                        <span>{fmt(selectedPaymentType === "upfront" ? upfrontPaymentAmount * (1 + guests.length) : finalPrice * (1 + guests.length))}</span>
+                      </div>
+
+                      <div className="flex justify-between items-center pt-3 border-t border-gray-200 text-sm font-bold">
+                        <span className="text-[#5d2a8b]">Total Payment Now</span>
+                        <span className="text-[#5d2a8b]">
+                          {fmt(selectedPaymentType === "upfront" ? upfrontPaymentAmount * (1 + guests.length) : finalPrice * (1 + guests.length))}
+                        </span>
+                      </div>
+                    </div>
+
+                    {/* Embedded Badge Info Display Module */}
+                    <div className="pt-2">
+                      <div className="w-full py-2.5 bg-[#5d2a8b] text-white rounded-lg text-xs font-bold flex flex-col items-center justify-center leading-tight shadow-sm">
+                        <span>{selectedPaymentType === "upfront" ? "Upfront Deposit" : "Full Payment"}</span>
+                        <span className="text-[10px] opacity-80 font-normal mt-0.5">
+                          {selectedPaymentType === "upfront" ? "Payment #1 of 2" : "Payment #1 of 1"}
+                        </span>
+                      </div>
+                    </div>
+                  </div>
+
+                  {/* 5. Terms and Conditions Card Box Container (Mimicking image_a534c4.png) */}
+                  <div className="p-4 bg-white border border-purple-200 rounded-xl flex gap-3 items-start shadow-sm">
+                    <span className="text-sm mt-0.5 flex-shrink-0">📄</span>
                     <div>
-                      <p className="font-bold text-gray-900 text-xs">Secure Payment Escrow Processing</p>
-                      <p className="text-[11px] text-gray-500 mt-0.5">Transactions are coordinated securely over Flutterwave infrastructure. Slots hold once verified.</p>
+                      <h4 className="text-xs font-bold text-[#5d2a8b] uppercase tracking-wider">Terms & Conditions</h4>
+                      <p className="text-xs text-gray-600 mt-1 leading-relaxed">
+                        By confirming this booking, you agree to our terms of service and cancellation policy. The service provider will contact you to confirm the appointment details.
+                      </p>
                     </div>
                   </div>
 
@@ -543,16 +758,19 @@ const ServicePaymentView: React.FC<ServicePaymentProps> = ({ initialOrderData })
                     </div>
                   )}
 
+                  {/* 6. Primary Action Execution Trigger Button (Mimicking image_a534c4.png) */}
                   <button 
                     onClick={handleInitiatePayment} 
                     disabled={loading}
-                    className="w-full py-3 rounded-lg font-bold text-white bg-[#5d2a8b] hover:bg-[#7a3aa3] text-sm transition-colors flex items-center justify-center gap-2"
+                    className="w-full py-3.5 bg-[#5d2a8b] hover:bg-[#7a3aa3] text-white rounded-xl font-bold text-sm transition-colors flex items-center justify-center gap-2 shadow-md"
                   >
-                    {loading ? 'Processing Schedule Link...' : 'Confirm Appointment and Secure Slots'}
+                    <span>💳</span>
+                    <span>
+                      Pay {fmt(selectedPaymentType === "upfront" ? upfrontPaymentAmount * (1 + guests.length) : finalPrice * (1 + guests.length))} & Confirm Booking
+                    </span>
                   </button>
                 </div>
               )}
-
             </div>
           </div>
         </div>

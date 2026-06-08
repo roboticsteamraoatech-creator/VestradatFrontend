@@ -476,13 +476,13 @@ export default function DeliveryPage() {
               <div>
                 <label className="block text-sm font-semibold text-gray-700 mb-3">Upload Images (Optional)</label>
                 <div className="grid grid-cols-3 gap-3">
-                  <ImageUploadBox label="Product" preview={productPreview}
+                  <ImageUploadBox label="PRODUCT PHOTO" preview={productPreview}
                     onFile={f => handleFile(f, setProductImg, setProductPreview)}
                     onClear={() => { setProductImg(null); setProductPreview(null); }} />
-                  <ImageUploadBox label="Representative" preview={repPreview}
+                  <ImageUploadBox label="REPRESENTATIVE/STAFF PHOTO" preview={repPreview}
                     onFile={f => handleFile(f, setRepImg, setRepPreview)}
                     onClear={() => { setRepImg(null); setRepPreview(null); }} />
-                  <ImageUploadBox label="User" preview={userPreview}
+                  <ImageUploadBox label="YOUR PHOTO" preview={userPreview}
                     onFile={f => handleFile(f, setUserImg, setUserPreview)}
                     onClear={() => { setUserImg(null); setUserPreview(null); }} />
                 </div>
