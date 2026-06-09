@@ -59,6 +59,7 @@ const MenuBtn: React.FC<MenuBtnProps> = ({
 
 export const UserSidebar: React.FC<SidebarProps> = ({ onShow, setShow }) => {
   const pathname = usePathname();
+  const { signOut } = useAuthContext();
   const [showLogoutModal, setShowLogoutModal] = useState(false);
   const [expandedMenu, setExpandedMenu] = useState<string | null>(null);
   const { user } = useAuthContext();
@@ -115,6 +116,7 @@ export const UserSidebar: React.FC<SidebarProps> = ({ onShow, setShow }) => {
     console.log("Logging out...");
     setShowLogoutModal(false);
     alert("Logged out successfully!");
+    signOut();
   };
 
   const handleCancelLogout = () => {

@@ -8,4 +8,121 @@ html, body {
   overflow-x: hidden;
 }
 
+/* ==========================================================================
+   CUSTOM PURPLE BRAND CALENDAR STYLING OVERRIDES
+   ========================================================================== */
+
+/* 1. Main Calendar Wrapper Base styling */
+.custom-calendar-container .react-calendar {
+  width: 100% !important;
+  max-width: 100% !important;
+  background: #ffffff !important;
+  border: none !important;
+  font-family: inherit !important;
+  padding: 1rem !important;
+}
+
+/* 2. Month/Year Header Toolbar Navigation Area */
+.custom-calendar-container .react-calendar__navigation {
+  display: flex !important;
+  align-items: center !important;
+  justify-content: space-between !important;
+  margin-bottom: 1.5rem !important;
+  height: auto !important;
+}
+
+/* Center Month Label Text */
+.custom-calendar-container .react-calendar__navigation__label {
+  font-weight: 700 !important;
+  font-size: 1.125rem !important;
+  color: #111827 !important;
+  background: transparent !important;
+  pointer-events: none !important; /* Disables clicking title text */
+}
+
+/* Rounded Navigation Chevrons (< and >) Buttons */
+.custom-calendar-container .react-calendar__navigation__arrow {
+  min-width: 40px !important;
+  height: 40px !important;
+  background-color: #f3f4f6 !important; /* Soft grey background */
+  color: #5d2a8b !important; /* Brand purple arrow color */
+  border-radius: 12px !important; /* Smooth square corners */
+  font-size: 1.25rem !important;
+  display: flex !important;
+  align-items: center !important;
+  justify-content: center !important;
+  transition: all 0.2s ease !important;
+}
+
+.custom-calendar-container .react-calendar__navigation__arrow:hover {
+  background-color: #e5e7eb !important;
+}
+
+/* Hide unneeded navigation button options (double arrows >>) */
+.custom-calendar-container .react-calendar__navigation__prev2-button,
+.custom-calendar-container .react-calendar__navigation__next2-button {
+  display: none !important;
+}
+
+/* 3. Weekday Header Labels row (Sun, Mon, Tue...) */
+.custom-calendar-container .react-calendar__month-view__weekdays {
+  text-transform: capitalize !important;
+  font-weight: 600 !important;
+  font-size: 0.85rem !important;
+  color: #6b7280 !important; /* Slate grey header */
+  margin-bottom: 0.75rem !important;
+}
+
+.custom-calendar-container .react-calendar__month-view__weekdays__weekday abbr {
+  text-decoration: none !important; /* Removes dotted underline under headers */
+}
+
+/* 4. Individual Date Grid Tiles Base Layout Rules */
+.custom-calendar-container .react-calendar__tile {
+  padding: 0.85rem 0.5rem !important;
+  font-size: 0.875rem !important;
+  font-weight: 600 !important;
+  color: #111827 !important;
+  background: transparent !important;
+  border-radius: 0px !important;
+  transition: all 0.15s ease !important;
+  display: flex !important;
+  align-items: center !important;
+  justify-content: center !important;
+}
+
+/* 5. ACTIVE / AVAILABLE DATES STYLE (The highlighted purple capsules) */
+/* Targets enabled tiles that are NOT active/selected yet */
+.custom-calendar-container .react-calendar__tile:enabled:not(.react-calendar__tile--active) {
+  background-color: #a855f7 !important; /* Bright purple pill background */
+  color: #ffffff !important;
+  border-radius: 12px !important; /* Fully rounded capsules */
+  border: 4px solid #ffffff !important; /* Creates layout grid gaps natively */
+}
+
+/* Interactive hover effects on allowed days */
+.custom-calendar-container .react-calendar__tile:enabled:hover {
+  background-color: #7a3aa3 !important; /* Darker variant on hover states */
+  cursor: pointer !important;
+}
+
+/* 6. DISABLED DATES STYLE (Greyed out non-available numbers) */
+.custom-calendar-container .react-calendar__tile:disabled,
+.custom-calendar-container .react-calendar__month-view__days__day--neighboringMonth {
+  background-color: transparent !important;
+  color: #d1d5db !important; /* Soft greyed out tone */
+  cursor: not-allowed !important;
+}
+
+/* 7. CURRENT SELECTED ACTIVE DATE STYLE */
+.custom-calendar-container .react-calendar__tile--active,
+.custom-calendar-container .react-calendar__tile--active:enabled {
+  background-color: #5d2a8b !important; /* Primary Deep Dark Purple */
+  color: #ffffff !important;
+  border-radius: 12px !important;
+  border: 4px solid #ffffff !important;
+  transform: scale(1.05) !important; /* Pop slightly forward */
+  box-shadow: 0 4px 6px -1px rgba(93, 42, 139, 0.2) !important;
+}
+
 @custom-variant hover (&:hover);
