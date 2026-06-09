@@ -1,3 +1,4 @@
+﻿import { BASE_URL } from '@/config/api';
 interface BankDetails {
   bankName: string;
   accountNumber: string;
@@ -18,7 +19,7 @@ class BankDetailsService {
 
   private static getToken(): string | null {
     if (typeof window !== 'undefined') {
-      return localStorage.getItem('token') || sessionStorage.getItem('token');
+      return localStorage.getItem('userToken') || sessionStorage.getItem('userToken');
     }
     return null;
   }
@@ -55,7 +56,7 @@ class BankDetailsService {
     try {
       const token = this.getToken();
       
-      const url = `${process.env.NEXT_PUBLIC_BACKEND_API_URL || 'https://datacapture-backend.onrender.com'}${this.BASE_URL}`;
+      const url = `${BASE_URL}${this.BASE_URL}`;
       
       const response = await fetch(url, {
         method: 'POST',
@@ -97,7 +98,7 @@ class BankDetailsService {
     try {
       const token = this.getToken();
       
-      const url = `${process.env.NEXT_PUBLIC_BACKEND_API_URL || 'https://datacapture-backend.onrender.com'}${this.BASE_URL}`;
+      const url = `${BASE_URL}${this.BASE_URL}`;
       
       const response = await fetch(url, {
         headers: {

@@ -1,4 +1,4 @@
-
+﻿
 // "use client";
 
 // import React, { useState, useEffect, useRef } from 'react';
@@ -93,7 +93,7 @@
 //         queryParams.append('search', searchTerm);
 //       }
       
-//       const response = await fetch(`https://datacapture-backend.onrender.com/api/super-admin/paid-subscriptions?${queryParams}`, {
+//       const response = await fetch(`${BASE_URL}/api/super-admin/paid-subscriptions?${queryParams}`, {
 //         headers: {
 //           'Authorization': `Bearer ${token}`,
 //           'Content-Type': 'application/json'
@@ -634,6 +634,7 @@ import React, { useState, useEffect, useRef } from 'react';
 import { Search, Download, X, ChevronLeft, ChevronRight } from 'lucide-react';
 import { toast } from '@/app/components/hooks/use-toast';
 import { useAuthContext } from '@/AuthContext';
+import { BASE_URL } from '@/config/api';
 
 interface UserInfo {
   fullName: string;
@@ -710,7 +711,7 @@ const PaymentsPage = () => {
       }
       
       // First, get total count
-      const initialResponse = await fetch(`https://datacapture-backend.onrender.com/api/super-admin/paid-subscriptions?page=1&limit=1`, {
+      const initialResponse = await fetch(`${BASE_URL}/api/super-admin/paid-subscriptions?page=1&limit=1`, {
         headers: {
           'Authorization': `Bearer ${token}`,
           'Content-Type': 'application/json'
@@ -724,7 +725,7 @@ const PaymentsPage = () => {
       let allSubscriptions: Payment[] = [];
       
       for (let page = 1; page <= totalPages; page++) {
-        const response = await fetch(`https://datacapture-backend.onrender.com/api/super-admin/paid-subscriptions?page=${page}&limit=100&sortBy=createdAt&sortOrder=desc`, {
+        const response = await fetch(`${BASE_URL}/api/super-admin/paid-subscriptions?page=${page}&limit=100&sortBy=createdAt&sortOrder=desc`, {
           headers: {
             'Authorization': `Bearer ${token}`,
             'Content-Type': 'application/json'

@@ -84,7 +84,7 @@ const ServiceFields: React.FC<ServiceFieldsProps> = ({
                 type="button"
                 onClick={() => setFormData(prev => ({
                   ...prev,
-                  subServices: [...prev.subServices, { name: '', description: '', price: 0 }]
+                  subServices: [...prev.subServices, { name: '', description: '', price: 0, uploadPicture: '' }]
                 }))}
                 className="flex items-center gap-1 px-3 py-1 bg-purple-600 text-white text-sm rounded-lg hover:bg-purple-700"
               >
@@ -172,6 +172,58 @@ const ServiceFields: React.FC<ServiceFieldsProps> = ({
                     />
                     {errors[`subService_${index}_price`] && (
                       <p className="mt-1 text-xs text-red-600">{errors[`subService_${index}_price`]}</p>
+                    )}
+                  </div>
+                  <div>
+                    <label className="block text-xs font-medium text-gray-700 mb-1">
+                      Image (optional)
+                    </label>
+                    {(subService.previewUrl || subService.uploadPicture) ? (
+                      <div className="relative inline-block">
+                        <img
+                          src={subService.previewUrl || subService.uploadPicture}
+                          alt="Sub-service preview"
+                          className="w-32 h-32 object-cover rounded-lg border border-gray-200"
+                        />
+                        <button
+                          type="button"
+                          onClick={() => {
+                            if (subService.previewUrl) URL.revokeObjectURL(subService.previewUrl);
+                            setFormData(prev => ({
+                              ...prev,
+                              subServices: prev.subServices.map((s, i) =>
+                                i === index ? { ...s, file: undefined, previewUrl: undefined, uploadPicture: undefined } : s
+                              )
+                            }));
+                          }}
+                          className="absolute -top-2 -right-2 bg-red-500 text-white rounded-full w-5 h-5 flex items-center justify-center text-xs hover:bg-red-600"
+                        >
+                          ✕
+                        </button>
+                      </div>
+                    ) : (
+                      <label className="flex flex-col items-center justify-center w-32 h-32 border-2 border-dashed border-gray-300 rounded-lg cursor-pointer bg-gray-50 hover:bg-gray-100 transition-colors">
+                        <svg xmlns="http://www.w3.org/2000/svg" className="w-6 h-6 text-gray-400 mb-1" fill="none" viewBox="0 0 24 24" stroke="currentColor" strokeWidth={2}>
+                          <path strokeLinecap="round" strokeLinejoin="round" d="M4 16l4.586-4.586a2 2 0 012.828 0L16 16m-2-2l1.586-1.586a2 2 0 012.828 0L20 14m-6-6h.01M6 20h12a2 2 0 002-2V6a2 2 0 00-2-2H6a2 2 0 00-2 2v12a2 2 0 002 2z" />
+                        </svg>
+                        <span className="text-xs text-gray-500">Upload image</span>
+                        <input
+                          type="file"
+                          accept="image/jpeg,image/png,image/webp"
+                          className="hidden"
+                          onChange={(e) => {
+                            const file = e.target.files?.[0];
+                            if (!file) return;
+                            const previewUrl = URL.createObjectURL(file);
+                            setFormData(prev => ({
+                              ...prev,
+                              subServices: prev.subServices.map((s, i) =>
+                                i === index ? { ...s, file, previewUrl } : s
+                              )
+                            }));
+                          }}
+                        />
+                      </label>
                     )}
                   </div>
                 </div>

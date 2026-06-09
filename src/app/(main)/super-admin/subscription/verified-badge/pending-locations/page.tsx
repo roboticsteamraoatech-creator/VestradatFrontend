@@ -1,4 +1,4 @@
-// "use client";
+﻿// "use client";
 
 // import React, { useState, useEffect } from 'react';
 // import { Search, MapPin, Clock, CheckCircle, XCircle, Eye, MoreVertical } from 'lucide-react';
@@ -41,8 +41,8 @@
 //   useEffect(() => {
 //     const fetchPendingVerifications = async () => {
 //       try {
-//         const token = localStorage.getItem('token');
-//         const response = await fetch('https://datacapture-backend.onrender.com/api/super-admin/location-verifications/pending', {
+//         const token = localStorage.getItem('userToken');
+//         const response = await fetch(`${BASE_URL}/api/super-admin/location-verifications/pending`, {
 //           headers: {
 //             'Authorization': `Bearer ${token}`,
 //             'Content-Type': 'application/json'
@@ -94,9 +94,9 @@
     
 //     setActionLoading(true);
 //     try {
-//       const token = localStorage.getItem('token');
+//       const token = localStorage.getItem('userToken');
 //       const response = await fetch(
-//         `https://datacapture-backend.onrender.com/api/super-admin/location-verifications/${selectedVerification.profileId}/${selectedVerification.locationIndex}/approve`,
+//         `${BASE_URL}/api/super-admin/location-verifications/${selectedVerification.profileId}/${selectedVerification.locationIndex}/approve`,
 //         {
 //           method: 'PUT',
 //           headers: {
@@ -127,9 +127,9 @@
     
 //     setActionLoading(true);
 //     try {
-//       const token = localStorage.getItem('token');
+//       const token = localStorage.getItem('userToken');
 //       const response = await fetch(
-//         `https://datacapture-backend.onrender.com/api/super-admin/location-verifications/${selectedVerification.profileId}/${selectedVerification.locationIndex}/reject`,
+//         `${BASE_URL}/api/super-admin/location-verifications/${selectedVerification.profileId}/${selectedVerification.locationIndex}/reject`,
 //         {
 //           method: 'PUT',
 //           headers: {
@@ -420,6 +420,7 @@
 
 import React, { useState, useEffect } from 'react';
 import { Search, MapPin, Clock, CheckCircle, XCircle, Eye, MoreVertical, ChevronLeft, ChevronRight } from 'lucide-react';
+import { BASE_URL } from '@/config/api';
 
 interface LocationVerification {
   profileId: string;
@@ -463,8 +464,8 @@ const PendingLocationsPage = () => {
   useEffect(() => {
     const fetchPendingVerifications = async () => {
       try {
-        const token = localStorage.getItem('token');
-        const response = await fetch('https://datacapture-backend.onrender.com/api/super-admin/location-verifications/pending', {
+        const token = localStorage.getItem('userToken');
+        const response = await fetch(`${BASE_URL}/api/super-admin/location-verifications/pending`, {
           headers: {
             'Authorization': `Bearer ${token}`,
             'Content-Type': 'application/json'
@@ -534,9 +535,9 @@ const PendingLocationsPage = () => {
     
     setActionLoading(true);
     try {
-      const token = localStorage.getItem('token');
+      const token = localStorage.getItem('userToken');
       const response = await fetch(
-        `https://datacapture-backend.onrender.com/api/super-admin/location-verifications/${selectedVerification.profileId}/${selectedVerification.locationIndex}/approve`,
+        `${BASE_URL}/api/super-admin/location-verifications/${selectedVerification.profileId}/${selectedVerification.locationIndex}/approve`,
         {
           method: 'PUT',
           headers: {
@@ -571,9 +572,9 @@ const PendingLocationsPage = () => {
     
     setActionLoading(true);
     try {
-      const token = localStorage.getItem('token');
+      const token = localStorage.getItem('userToken');
       const response = await fetch(
-        `https://datacapture-backend.onrender.com/api/super-admin/location-verifications/${selectedVerification.profileId}/${selectedVerification.locationIndex}/reject`,
+        `${BASE_URL}/api/super-admin/location-verifications/${selectedVerification.profileId}/${selectedVerification.locationIndex}/reject`,
         {
           method: 'PUT',
           headers: {

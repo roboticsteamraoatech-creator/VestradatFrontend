@@ -1,4 +1,5 @@
-import { HttpService } from './HttpService';
+﻿import { HttpService } from './HttpService';
+import { BASE_URL } from '@/config/api';
 
 export interface AdminNotification {
   _id: string;
@@ -125,12 +126,12 @@ export class NotificationService {
     notificationId: string
   ): Promise<{ success: boolean; data?: any; message?: string }> {
     try {
-      const url = `${process.env.NEXT_PUBLIC_BACKEND_API || 'https://datacapture-backend.onrender.com'}/api/admin/notifications/${notificationId}/read`;
+      const url = `${BASE_URL}/api/admin/notifications/${notificationId}/read`;
       const response = await fetch(url, {
         method: 'PUT',
         headers: {
           'Content-Type': 'application/json',
-          'Authorization': `Bearer ${typeof window !== 'undefined' ? localStorage.getItem('token') : ''}`
+          'Authorization': `Bearer ${typeof window !== 'undefined' ? localStorage.getItem('userToken') : ''}`
         }
       });
 
@@ -160,12 +161,12 @@ export class NotificationService {
    */
   static async markAllAsRead(): Promise<{ success: boolean; data?: any; message?: string }> {
     try {
-      const url = `${process.env.NEXT_PUBLIC_BACKEND_API || 'https://datacapture-backend.onrender.com'}/api/admin/notifications/read-all`;
+      const url = `${BASE_URL}/api/admin/notifications/read-all`;
       const response = await fetch(url, {
         method: 'PUT',
         headers: {
           'Content-Type': 'application/json',
-          'Authorization': `Bearer ${typeof window !== 'undefined' ? localStorage.getItem('token') : ''}`
+          'Authorization': `Bearer ${typeof window !== 'undefined' ? localStorage.getItem('userToken') : ''}`
         }
       });
 

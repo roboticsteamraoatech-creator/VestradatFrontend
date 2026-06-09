@@ -31,6 +31,8 @@ interface GalleryItem {
   visibilityToPublic: boolean;
   notes?: string;
   locationIndex: number;
+  imageUrl?: string;
+  videoUrl?: string;
   images: string[];
   videos: string[];
   createdAt: string;
@@ -134,9 +136,17 @@ const ViewGalleryItemPage = () => {
     );
   }
 
-  const actualAmount = item.actualAmount || 
-    (item.priceInDollars - (item.priceInDollars * (item.discountPercentage || 0) / 100) + 
+  const actualAmount = item.actualAmount ||
+    (item.priceInDollars - (item.priceInDollars * (item.discountPercentage || 0) / 100) +
     (item.priceInDollars * (item.platformChargePercentage || 0) / 100));
+
+  // Combine imageUrl (top-level) with images array for display
+  const allImages = item.imageUrl
+    ? [item.imageUrl, ...(item.images || []).filter(img => img !== item.imageUrl)]
+    : (item.images || []);
+  const allVideos = item.videoUrl
+    ? [item.videoUrl, ...(item.videos || []).filter(v => v !== item.videoUrl)]
+    : (item.videos || []);
 
   const displayId = item._id ? item._id.slice(-8) : 'N/A';
 
@@ -236,12 +246,12 @@ const ViewGalleryItemPage = () => {
               <div className="p-1.5 bg-purple-100 rounded-lg mr-2">
                 <ImageIcon className="w-5 h-5 text-purple-600" />
               </div>
-              Images ({item.images?.length || 0})
+              Images ({allImages.length})
             </h2>
-            {item.images && item.images.length > 0 ? (
+            {allImages.length > 0 ? (
               <>
                 <div className="grid grid-cols-2 sm:grid-cols-3 md:grid-cols-4 lg:grid-cols-5 gap-4">
-                  {item.images.map((image, index) => (
+                  {allImages.map((image, index) => (
                     <div 
                       key={index} 
                       className="relative group aspect-square cursor-pointer"
@@ -305,11 +315,11 @@ const ViewGalleryItemPage = () => {
               <div className="p-1.5 bg-purple-100 rounded-lg mr-2">
                 <Video className="w-5 h-5 text-purple-600" />
               </div>
-              Videos ({item.videos?.length || 0})
+              Videos ({allVideos.length})
             </h2>
-            {item.videos && item.videos.length > 0 ? (
+            {allVideos.length > 0 ? (
               <div className="grid grid-cols-1 sm:grid-cols-2 lg:grid-cols-3 gap-4">
-                {item.videos.map((video, index) => (
+                {allVideos.map((video, index) => (
                   <div key={index} className="flex items-center p-4 bg-white rounded-lg border border-gray-200 hover:border-purple-300 hover:shadow-sm transition-all">
                     <div className="p-2 bg-red-50 rounded-lg mr-3">
                       <Video className="w-5 h-5 text-red-500" />
@@ -445,14 +455,14 @@ const ViewGalleryItemPage = () => {
                             <ImageIcon className="w-4 h-4 mr-2 text-gray-400" />
                             Images
                           </span>
-                          <span className="text-sm font-medium text-gray-900">{item.images?.length || 0}</span>
+                          <span className="text-sm font-medium text-gray-900">{allImages.length}</span>
                         </div>
                         <div className="flex justify-between items-center">
                           <span className="text-sm text-gray-600 flex items-center">
                             <Video className="w-4 h-4 mr-2 text-gray-400" />
                             Videos
                           </span>
-                          <span className="text-sm font-medium text-gray-900">{item.videos?.length || 0}</span>
+                          <span className="text-sm font-medium text-gray-900">{allVideos.length}</span>
                         </div>
                       </div>
                     </div>

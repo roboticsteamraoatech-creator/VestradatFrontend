@@ -1,8 +1,24 @@
 "use client";
 
 import React, { useState, useEffect } from 'react';
-import { Users, Building2, Package, TrendingUp, BarChart3, DollarSign, Calendar } from 'lucide-react';
+import { useRouter } from 'next/navigation';
+import { Users, Building2, Package, TrendingUp, BarChart3, DollarSign, Calendar, ShoppingBag, User, Settings, BarChart2 } from 'lucide-react';
 import { SuperAdminDashboardService } from '@/services/SuperAdminDashboardService';
+
+const SUPER_QUICK_ACTIONS = [
+  { label: 'Organizations', route: '/super-admin/organisation', icon: Building2, color: 'bg-purple-50 text-purple-600' },
+  { label: 'Customers', route: '/super-admin/customers', icon: Users, color: 'bg-blue-50 text-blue-600' },
+  { label: 'Subscriptions', route: '/super-admin/subscription', icon: Package, color: 'bg-green-50 text-green-600' },
+  { label: 'Paid Subscriptions', route: '/super-admin/payments', icon: DollarSign, color: 'bg-yellow-50 text-yellow-600' },
+  { label: 'Orders', route: '/super-admin/orders', icon: ShoppingBag, color: 'bg-orange-50 text-orange-600' },
+  { label: 'Industries', route: '/super-admin/industry', icon: BarChart3, color: 'bg-cyan-50 text-cyan-600' },
+  { label: 'Categories', route: '/super-admin/category', icon: Package, color: 'bg-teal-50 text-teal-600' },
+  { label: 'Analytics', route: '/super-admin/analytics', icon: BarChart2, color: 'bg-indigo-50 text-indigo-600' },
+  { label: 'Settings', route: '/super-admin/settings', icon: Settings, color: 'bg-gray-50 text-gray-600' },
+  { label: 'Pickup Centers', route: '/super-admin/pickup-center', icon: Package, color: 'bg-rose-50 text-rose-600' },
+  { label: 'Commissions', route: '/super-admin/platform-commission', icon: DollarSign, color: 'bg-emerald-50 text-emerald-600' },
+  { label: 'All Users', route: '/super-admin/users', icon: User, color: 'bg-fuchsia-50 text-fuchsia-600' },
+];
 
 interface DashboardStats {
   totalOrganizations: number;
@@ -34,6 +50,7 @@ interface AnalyticsData {
 }
 
 const SuperAdminDashboard = () => {
+  const router = useRouter();
   const [stats, setStats] = useState<DashboardStats | null>(null);
   const [analytics, setAnalytics] = useState<AnalyticsData | null>(null);
   const [loading, setLoading] = useState(true);
@@ -322,7 +339,27 @@ const SuperAdminDashboard = () => {
         </div>
       </div>
 
-
+      {/* Quick Actions */}
+      <div className="mt-8">
+        <h2 className="text-xl font-bold text-gray-800 mb-4">Quick Actions</h2>
+        <div className="grid grid-cols-2 sm:grid-cols-3 lg:grid-cols-4 gap-3">
+          {SUPER_QUICK_ACTIONS.map((action) => {
+            const Icon = action.icon;
+            return (
+              <button
+                key={action.route}
+                onClick={() => router.push(action.route)}
+                className="flex flex-col items-center gap-2 p-4 bg-white border border-gray-100 rounded-2xl hover:border-purple-200 hover:shadow-md transition-all text-center"
+              >
+                <div className={`w-10 h-10 rounded-xl flex items-center justify-center ${action.color}`}>
+                  <Icon className="w-5 h-5" />
+                </div>
+                <span className="text-xs font-medium text-gray-700 leading-tight">{action.label}</span>
+              </button>
+            );
+          })}
+        </div>
+      </div>
     </div>
   );
 };

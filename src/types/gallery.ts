@@ -2,6 +2,11 @@ export interface SubService {
   name: string;
   description: string;
   price: number;
+  uploadPicture?: string;
+  /** Transient — only used client-side for pre-upload preview; never sent to API */
+  file?: File;
+  /** Transient — object URL for image preview display */
+  previewUrl?: string;
 }
 
 export interface TimeWindow {

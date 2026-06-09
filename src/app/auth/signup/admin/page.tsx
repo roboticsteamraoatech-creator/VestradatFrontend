@@ -1,4 +1,4 @@
-// 'use client';
+﻿// 'use client';
 
 // import React, { useState, useEffect } from 'react';
 // import { Eye, EyeOff } from 'lucide-react';
@@ -111,7 +111,7 @@
       
 //       console.log('🚀 Sending ORGANIZATION registration to backend:', payload);
 
-//       const { data } = await client.post('https://datacapture-backend.onrender.com/api/auth/register', payload);
+//       const { data } = await client.post(`${BASE_URL}/api/auth/register`, payload);
 //       return data;
 //     },
 //     onSuccess: (response) => {
@@ -276,7 +276,7 @@
 //     const fetchIndustries = async () => {
 //       try {
 //         setLoadingIndustries(true);
-//         const response = await client.get('https://datacapture-backend.onrender.com/api/auth/industries');
+//         const response = await client.get(`${BASE_URL}/api/auth/industries`);
 //         if (response.data && response.data.success) {
 //           // Handle response format: { success: true, data: { industries: [...] } }
 //           const industriesData = response.data.data?.industries || response.data.data || [];
@@ -1461,6 +1461,7 @@ import { useMutation } from '@tanstack/react-query';
 import { useAuth } from '@/api/hooks/useAuth';
 import { toast } from '@/app/components/hooks/use-toast';
 import Link from "next/link";
+import { BASE_URL } from '@/config/api';
 
 interface FormValues {
   name: string;
@@ -1568,7 +1569,7 @@ export default function OrganizationSignupPage() {
       
       console.log('🚀 Sending ORGANIZATION registration to backend:', payload);
 
-      const { data } = await client.post('https://datacapture-backend.onrender.com/api/auth/register', payload);
+      const { data } = await client.post(`${BASE_URL}/api/auth/register`, payload);
       return data;
     },
     onSuccess: (response) => {
@@ -1742,7 +1743,7 @@ export default function OrganizationSignupPage() {
     const fetchIndustries = async () => {
       try {
         setLoadingIndustries(true);
-        const response = await client.get('https://datacapture-backend.onrender.com/api/auth/industries');
+        const response = await client.get(`${BASE_URL}/api/auth/industries`);
         if (response.data && response.data.success) {
           // Handle response format: { success: true, data: { industries: [...] } }
           const industriesData = response.data.data?.industries || response.data.data || [];

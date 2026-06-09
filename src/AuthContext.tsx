@@ -39,7 +39,7 @@ export const AuthProvider = ({ children }: { children: React.ReactNode }) => {
     setUser(userData);
 
     try {
-      localStorage.setItem("token", String(newToken));
+      localStorage.setItem("userToken", String(newToken));
       localStorage.setItem("user", JSON.stringify(userData));
     } catch (err) {
       // localStorage could be disabled in some environments — fail silently.
@@ -54,7 +54,7 @@ export const AuthProvider = ({ children }: { children: React.ReactNode }) => {
     setUser(null);
 
     try {
-      localStorage.removeItem("token");
+      localStorage.removeItem("userToken");
       localStorage.removeItem("user");
     } catch (err) {
       if (process.env.NODE_ENV === 'development') {
@@ -69,7 +69,7 @@ export const AuthProvider = ({ children }: { children: React.ReactNode }) => {
   React.useEffect(() => {
     const restoreAuth = async () => {
       try {
-        const storedToken = localStorage.getItem("token");
+        const storedToken = localStorage.getItem("userToken");
 
         // Guard against the string "undefined" or "null"
         if (storedToken && storedToken !== "undefined" && storedToken !== "null") {
@@ -79,7 +79,7 @@ export const AuthProvider = ({ children }: { children: React.ReactNode }) => {
           try {
             // Set token in HttpService first to ensure it's available
             if (typeof window !== 'undefined') {
-              localStorage.setItem('token', storedToken);
+              localStorage.setItem('userToken', storedToken);
             }
             
             const userService = new UserService();

@@ -1,10 +1,11 @@
-"use client";
+﻿"use client";
 
 import React, { useState, useEffect } from 'react';
 import { Search, Package, Calendar, Users, Tag, Percent, Eye, Plus, ShieldCheck, List } from 'lucide-react';
 import Link from 'next/link';
 import { useAuthContext } from '@/AuthContext';
 import ServicesModal from '@/components/modals/ServicesModal';
+import { BASE_URL } from '@/config/api';
 
 interface Service {
   serviceId: string;
@@ -80,7 +81,7 @@ const ViewSubscriptionPackagesPage = () => {
         setLoading(true);
         setError(null);
         
-        const backendUrl = `${process.env.NEXT_PUBLIC_BACKEND_API || 'https://datacapture-backend.onrender.com'}/api/user-subscriptions/user/${userId}/active`;
+        const backendUrl = `${BASE_URL}/api/user-subscriptions/user/${userId}/active`;
         
         const response = await fetch(backendUrl, {
           method: 'GET',

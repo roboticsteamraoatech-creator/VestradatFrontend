@@ -1,3 +1,4 @@
+﻿import { BASE_URL } from '@/config/api';
 interface AssignmentLocation {
   _id: string;
   locationType: string;
@@ -88,7 +89,7 @@ class DataVerificationService {
   private baseUrl: string;
 
   constructor() {
-    this.baseUrl = process.env.NEXT_PUBLIC_BACKEND_API || 'https://datacapture-backend.onrender.com';
+    this.baseUrl = BASE_URL;
   }
 
   /**

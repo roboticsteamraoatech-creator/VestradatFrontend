@@ -1,4 +1,5 @@
-import { NextRequest, NextResponse } from 'next/server';
+﻿import { NextRequest, NextResponse } from 'next/server';
+import { BASE_URL } from '@/config/api';
 
 // POST /api/admin/one-time-codes - Generate a one-time code
 export async function POST(request: NextRequest) {
@@ -8,7 +9,7 @@ export async function POST(request: NextRequest) {
     console.log('🔄 Proxying one-time code generation request to backend:', body);
 
     // Get the backend URL from environment variables
-    const backendUrl = process.env.NEXT_PUBLIC_BACKEND_API || process.env.API_URL || process.env.NEXT_PUBLIC_API_URL || 'https://datacapture-backend.onrender.com';
+    const backendUrl = BASE_URL;
     
     // Get the authorization token from the incoming request
     const authHeader = request.headers.get('authorization');
@@ -46,7 +47,7 @@ export async function GET(request: NextRequest) {
     console.log('🔄 Proxying one-time codes listing request to backend:', { page, limit });
 
     // Get the backend URL from environment variables
-    const backendUrl = process.env.NEXT_PUBLIC_BACKEND_API || process.env.API_URL || process.env.NEXT_PUBLIC_API_URL || 'https://datacapture-backend.onrender.com';
+    const backendUrl = BASE_URL;
     
     // Get the authorization token from the incoming request
     const authHeader = request.headers.get('authorization');

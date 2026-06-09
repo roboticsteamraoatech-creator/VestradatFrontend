@@ -1,4 +1,5 @@
-import { 
+﻿import { 
+import { BASE_URL } from '@/config/api';
   PlatformCommission, 
   CreatePlatformCommissionRequest, 
   UpdatePlatformCommissionRequest, 
@@ -10,7 +11,7 @@ class PlatformCommissionService {
 
   private static getToken(): string | null {
     if (typeof window !== 'undefined') {
-      return localStorage.getItem('token') || sessionStorage.getItem('token');
+      return localStorage.getItem('userToken') || sessionStorage.getItem('userToken');
     }
     return null;
   }
@@ -96,7 +97,7 @@ class PlatformCommissionService {
         url += `?${queryString}`;
       }
 
-      const fullUrl = `${process.env.NEXT_PUBLIC_BACKEND_API_URL || 'https://datacapture-backend.onrender.com'}${url}`;
+      const fullUrl = `${BASE_URL}${url}`;
       
       const response = await fetch(fullUrl, {
         headers: {
@@ -154,7 +155,7 @@ class PlatformCommissionService {
     try {
       const token = this.getToken();
       const url = `${this.BASE_URL}/${id}`;
-      const fullUrl = `${process.env.NEXT_PUBLIC_BACKEND_API_URL || 'https://datacapture-backend.onrender.com'}${url}`;
+      const fullUrl = `${BASE_URL}${url}`;
       
       const response = await fetch(fullUrl, {
         headers: {
@@ -180,7 +181,7 @@ class PlatformCommissionService {
     try {
       const token = this.getToken();
       const url = `${this.BASE_URL}/category/${categoryId}`;
-      const fullUrl = `${process.env.NEXT_PUBLIC_BACKEND_API_URL || 'https://datacapture-backend.onrender.com'}${url}`;
+      const fullUrl = `${BASE_URL}${url}`;
       
       const response = await fetch(fullUrl, {
         headers: {
@@ -212,7 +213,7 @@ class PlatformCommissionService {
   static async createPlatformCommission(data: CreatePlatformCommissionRequest): Promise<PlatformCommission> {
     try {
       const token = this.getToken();
-      const fullUrl = `${process.env.NEXT_PUBLIC_BACKEND_API_URL || 'https://datacapture-backend.onrender.com'}${this.BASE_URL}`;
+      const fullUrl = `${BASE_URL}${this.BASE_URL}`;
       
       // Convert to API format
       const apiData = this.mapToApiRequest(data);
@@ -243,7 +244,7 @@ class PlatformCommissionService {
     try {
       const token = this.getToken();
       const url = `${this.BASE_URL}/${id}`;
-      const fullUrl = `${process.env.NEXT_PUBLIC_BACKEND_API_URL || 'https://datacapture-backend.onrender.com'}${url}`;
+      const fullUrl = `${BASE_URL}${url}`;
       
       // Convert to API format
       const apiData = this.mapToApiRequest(data);
@@ -278,7 +279,7 @@ class PlatformCommissionService {
     try {
       const token = this.getToken();
       const url = `${this.BASE_URL}/${id}`;
-      const fullUrl = `${process.env.NEXT_PUBLIC_BACKEND_API_URL || 'https://datacapture-backend.onrender.com'}${url}`;
+      const fullUrl = `${BASE_URL}${url}`;
       
       const response = await fetch(fullUrl, {
         method: 'DELETE',
@@ -320,7 +321,7 @@ class PlatformCommissionService {
         url += `?${queryString}`;
       }
 
-      const fullUrl = `${process.env.NEXT_PUBLIC_BACKEND_API_URL || 'https://datacapture-backend.onrender.com'}${url}`;
+      const fullUrl = `${BASE_URL}${url}`;
       
       const response = await fetch(fullUrl, {
         headers: {

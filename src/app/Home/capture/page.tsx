@@ -1,8 +1,9 @@
-"use client"
+﻿"use client"
 
 import { useRouter } from "next/navigation"
 import Image from "next/image"
 import { useState, useRef } from "react"
+import { BASE_URL } from '@/config/api';
 
 const CallToActionSection = () => {
   const router = useRouter()
@@ -108,8 +109,8 @@ const CallToActionSection = () => {
       const base64Data = await convertToBase64(file)
       
       // Upload photo
-      const backendUrl = process.env.NEXT_PUBLIC_BACKEND_API || 'https://datacapture-backend.onrender.com';
-      const token = localStorage.getItem('token');
+      const backendUrl = BASE_URL;
+      const token = localStorage.getItem('userToken');
       const response = await fetch(`${backendUrl}/api/photos/upload`, {
         method: 'POST',
         headers: {

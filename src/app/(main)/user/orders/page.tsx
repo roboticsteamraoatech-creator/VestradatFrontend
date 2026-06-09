@@ -1,9 +1,10 @@
-"use client";
+﻿"use client";
 
 import { useState, useEffect } from 'react';
 import { ArrowLeft, Package, Calendar, Clock, CheckCircle, Clock3, Wallet } from 'lucide-react';
 import { useRouter } from 'next/navigation';
 import { useAuth } from '@/api/hooks/useAuth';
+import { BASE_URL } from '@/config/api';
 
 interface Payment {
   paymentNumber: number;
@@ -57,7 +58,7 @@ const OrdersPage = () => {
       setLoading(true);
       setError(null);
       
-      const response = await fetch('https://datacapture-backend.onrender.com/api/orders/user/my-orders', {
+      const response = await fetch(`${BASE_URL}/api/orders/user/my-orders`, {
         headers: {
           'Authorization': `Bearer ${token}`,
           'Content-Type': 'application/json'

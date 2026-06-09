@@ -1,5 +1,7 @@
+import { BASE_URL } from '@/config/api';
+
 class RemittanceService {
-  private static BASE_URL = process.env.NEXT_PUBLIC_BACKEND_API || 'http://localhost:3000/api';
+  private static BASE_URL = BASE_URL;
   
   // For future remittance functionality if needed
   // Currently focused only on bank details functionality

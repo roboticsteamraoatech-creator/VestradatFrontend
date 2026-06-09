@@ -46,7 +46,7 @@ const CreateAssignmentPage = () => {
 
   const fetchUsers = async () => {
     try {
-      const token = localStorage.getItem('token') || '';
+      const token = localStorage.getItem('userToken') || '';
       const response = await dataVerificationService.getVerificationUsers(token);
       setUsers(response.data.users.map((user: any) => ({
         ...user,
@@ -60,7 +60,7 @@ const CreateAssignmentPage = () => {
 
   const fetchOrganizations = async () => {
     try {
-      const token = localStorage.getItem('token') || '';
+      const token = localStorage.getItem('userToken') || '';
       const response = await dataVerificationService.getOrganizationsForAssignment(token);
       setOrganizations(response.data.organizations);
     } catch (error) {
@@ -133,7 +133,7 @@ const CreateAssignmentPage = () => {
 
     try {
       setLoading(true);
-      const token = localStorage.getItem('token') || '';
+      const token = localStorage.getItem('userToken') || '';
       
       await dataVerificationService.createRoleWithAssignments({
         roleName,

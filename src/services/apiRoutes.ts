@@ -1,9 +1,9 @@
-
+﻿
 
 export const routes = {
   // User profile routes
   getUserProfile: () => '/api/auth/profile',
-  updateUserProfile: () => '/api/user/profile',
+  updateUserProfile: () => '/api/auth/profile',
   
   // Manual measurement routes
   getManualMeasurementForms: () => '/api/manual-measurements/forms',
@@ -179,7 +179,7 @@ deleteService: (id: string) => `/api/services/${id}`,
     organizationUsers: '/api/admin/booking/organization-users',
     serviceProviders: '/api/admin/booking/service-providers',
     locationOptions: '/api/admin/booking/location-options',
-    validateLocation: 'https://datacapture-backend.onrender.com/api/admin/booking/validate-location',
+    validateLocation: '/api/admin/booking/validate-location',
     createBooking: '/api/admin/booking/create',
   },
   

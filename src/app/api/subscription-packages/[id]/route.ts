@@ -1,4 +1,5 @@
-import { NextRequest } from 'next/server';
+﻿import { NextRequest } from 'next/server';
+import { BASE_URL } from '@/config/api';
 
 export async function GET(request: NextRequest, { params }: { params: Promise<{ id: string }> }) {
   try {
@@ -6,7 +7,7 @@ export async function GET(request: NextRequest, { params }: { params: Promise<{ 
     const { id } = awaitedParams;
     
     // Call the actual backend API
-    const backendUrl = `https://datacapture-backend.onrender.com/api/subscription-packages/${id}`;
+    const backendUrl = `${BASE_URL}/api/subscription-packages/${id}`;
     
     const response = await fetch(backendUrl, {
       method: 'GET',
@@ -174,7 +175,7 @@ export async function PUT(request: NextRequest, { params }: { params: Promise<{ 
     }
 
     // Call the actual backend API
-    const response = await fetch(`https://datacapture-backend.onrender.com/api/subscription-packages/${id}`, {
+    const response = await fetch(`${BASE_URL}/api/subscription-packages/${id}`, {
       method: 'PUT',
       headers: {
         'Content-Type': 'application/json',
@@ -237,7 +238,7 @@ export async function DELETE(request: NextRequest, { params }: { params: Promise
     const { id } = awaitedParams;
     
     // Call the actual backend API
-    const response = await fetch(`https://datacapture-backend.onrender.com/api/subscription-packages/${id}`, {
+    const response = await fetch(`${BASE_URL}/api/subscription-packages/${id}`, {
       method: 'DELETE',
       headers: {
         'Content-Type': 'application/json',

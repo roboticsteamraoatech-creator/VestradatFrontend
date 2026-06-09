@@ -1,8 +1,9 @@
-'use client';
+﻿'use client';
 
 import React, { useState, useEffect } from 'react';
 import { useAuthContext } from '@/AuthContext';
 import { 
+import { BASE_URL } from '@/config/api';
   Search, 
   Package, 
   Calendar, 
@@ -71,7 +72,7 @@ const LocationPaymentPage = () => {
         setError(null);
 
         // Fetch location fees breakdown
-        const pricingResponse = await fetch(`${process.env.NEXT_PUBLIC_BACKEND_API || 'https://datacapture-backend.onrender.com'}/api/payment/verified-badge/pricing`, {
+        const pricingResponse = await fetch(`${BASE_URL}/api/payment/verified-badge/pricing`, {
           method: 'GET',
           headers: {
             'Content-Type': 'application/json',
@@ -87,7 +88,7 @@ const LocationPaymentPage = () => {
         setLocationFees(pricingData.data.locationFees || []);
 
         // Fetch payment status
-        const statusResponse = await fetch(`${process.env.NEXT_PUBLIC_BACKEND_API || 'https://datacapture-backend.onrender.com'}/api/payment/verified-badge/check-payment-required`, {
+        const statusResponse = await fetch(`${BASE_URL}/api/payment/verified-badge/check-payment-required`, {
           method: 'GET',
           headers: {
             'Content-Type': 'application/json',

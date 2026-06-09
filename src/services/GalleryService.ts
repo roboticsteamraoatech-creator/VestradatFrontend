@@ -1,7 +1,8 @@
-
+﻿
 
 
 import { routes } from './apiRoutes';
+import { BASE_URL } from '@/config/api';
 
 console.log('GalleryService: Imported routes object:', routes);
 
@@ -217,7 +218,7 @@ interface PlatformCodePreview {
 
 export class GalleryService {
   private static getHeaders(token: string) {
-    console.log('GalleryService: Using backend URL:', process.env.NEXT_PUBLIC_BACKEND_API || 'https://datacapture-backend.onrender.com');
+    console.log('GalleryService: Using backend URL:', BASE_URL);
     return {
       'Authorization': `Bearer ${token}`,
       'Content-Type': 'application/json'
@@ -228,7 +229,7 @@ export class GalleryService {
   static async createGalleryItem(token: string, data: GalleryItemCreateData): Promise<{ success: boolean; data?: { galleryItem: GalleryItem }; message?: string }> {
     try {
       console.log('GalleryService: Creating gallery item with data:', JSON.stringify(data, null, 2));
-      const fullUrl = `${process.env.NEXT_PUBLIC_BACKEND_API || 'https://datacapture-backend.onrender.com'}${routes.gallery.base}`;
+      const fullUrl = `${BASE_URL}${routes.gallery.base}`;
       console.log('GalleryService: POST request to:', fullUrl);
       const response = await fetch(fullUrl, {
         method: 'POST',
@@ -297,7 +298,7 @@ export class GalleryService {
       if (locationIndex !== undefined) params.append('locationIndex', locationIndex.toString());
       if (itemType) params.append('itemType', itemType);
 
-      const baseUrl = `${process.env.NEXT_PUBLIC_BACKEND_API || 'https://datacapture-backend.onrender.com'}${routes.gallery.base}`;
+      const baseUrl = `${BASE_URL}${routes.gallery.base}`;
       const url = `${baseUrl}?${params.toString()}`;
       console.log('GalleryService: Fetching from URL:', url);
       
@@ -343,7 +344,7 @@ export class GalleryService {
   static async getGalleryItem(token: string, itemId: string): Promise<{ success: boolean; data?: GalleryItem; message?: string }> {
     try {
       console.log('GalleryService: Fetching item', itemId);
-      const fullUrl = `${process.env.NEXT_PUBLIC_BACKEND_API || 'https://datacapture-backend.onrender.com'}${routes.gallery.item(itemId)}`;
+      const fullUrl = `${BASE_URL}${routes.gallery.item(itemId)}`;
       const response = await fetch(fullUrl, {
         headers: this.getHeaders(token)
       });
@@ -371,7 +372,7 @@ export class GalleryService {
   ): Promise<{ success: boolean; data?: GalleryItem; message?: string }> {
     try {
       console.log('GalleryService: Updating item', itemId, 'with data:', data);
-      const fullUrl = `${process.env.NEXT_PUBLIC_BACKEND_API || 'https://datacapture-backend.onrender.com'}${routes.gallery.item(itemId)}`;
+      const fullUrl = `${BASE_URL}${routes.gallery.item(itemId)}`;
       const response = await fetch(fullUrl, {
         method: 'PUT',
         headers: this.getHeaders(token),
@@ -397,7 +398,7 @@ export class GalleryService {
   static async deleteGalleryItem(token: string, itemId: string): Promise<{ success: boolean; message?: string }> {
     try {
       console.log('GalleryService: Deleting item', itemId);
-      const fullUrl = `${process.env.NEXT_PUBLIC_BACKEND_API || 'https://datacapture-backend.onrender.com'}${routes.gallery.item(itemId)}`;
+      const fullUrl = `${BASE_URL}${routes.gallery.item(itemId)}`;
       const response = await fetch(fullUrl, {
         method: 'DELETE',
         headers: this.getHeaders(token)
@@ -432,7 +433,7 @@ export class GalleryService {
       // Note: Backend automatically sets first uploaded image as main image
       // isMain flag is logged but not sent to match API spec
 
-      const fullUrl = `${process.env.NEXT_PUBLIC_BACKEND_API || 'https://datacapture-backend.onrender.com'}${routes.gallery.uploadImage(itemId)}`;
+      const fullUrl = `${BASE_URL}${routes.gallery.uploadImage(itemId)}`;
       const response = await fetch(fullUrl, {
         method: 'POST',
         headers: {
@@ -469,7 +470,7 @@ export class GalleryService {
       const formData = new FormData();
       formData.append('video', videoFile);
 
-      const fullUrl = `${process.env.NEXT_PUBLIC_BACKEND_API || 'https://datacapture-backend.onrender.com'}${routes.gallery.uploadVideo(itemId)}`;
+      const fullUrl = `${BASE_URL}${routes.gallery.uploadVideo(itemId)}`;
       const response = await fetch(fullUrl, {
         method: 'POST',
         headers: {
@@ -516,7 +517,7 @@ static async getCategoriesByIndustry(token: string, industryId: string): Promise
 }> {
   try {
     console.log('GalleryService: Fetching categories for industry:', industryId);
-    const url = `${process.env.NEXT_PUBLIC_BACKEND_API || 'https://datacapture-backend.onrender.com'}/api/admin/gallery/categories?industryId=${industryId}`;
+    const url = `${BASE_URL}/api/admin/gallery/categories?industryId=${industryId}`;
     const response = await fetch(url, {
       headers: this.getHeaders(token)
     });
@@ -543,7 +544,7 @@ static async getCategoriesByIndustry(token: string, industryId: string): Promise
 static async getPlatformCommissionByCategory(token: string, categoryId: string): Promise<{ success: boolean; data?: { commission: PlatformCommission }; message?: string }> {
   try {
     console.log('GalleryService: Fetching platform commission for category:', categoryId);
-    const url = `${process.env.NEXT_PUBLIC_BACKEND_API || 'https://datacapture-backend.onrender.com'}/api/super-admin/platform-commissions/category/${categoryId}`;
+    const url = `${BASE_URL}/api/super-admin/platform-commissions/category/${categoryId}`;
     const response = await fetch(url, {
       headers: this.getHeaders(token)
     });
@@ -567,7 +568,7 @@ static async getPlatformCommissionByCategory(token: string, categoryId: string):
   static async getPlatformCodePreview(token: string): Promise<{ success: boolean; data?: PlatformCodePreview; message?: string }> {
     try {
       console.log('GalleryService: Fetching platform code preview');
-      const url = `${process.env.NEXT_PUBLIC_BACKEND_API || 'https://datacapture-backend.onrender.com'}/api/admin/gallery/preview-code`;
+      const url = `${BASE_URL}/api/admin/gallery/preview-code`;
       const response = await fetch(url, {
         headers: this.getHeaders(token)
       });
@@ -594,7 +595,7 @@ static async getPlatformCommissionByCategory(token: string, categoryId: string):
   static async getIndustries(token: string): Promise<{ success: boolean; data?: { industries: Array<{ id: string; name: string }> }; message?: string }> {
     try {
       console.log('GalleryService: Fetching industries');
-      const url = `${process.env.NEXT_PUBLIC_BACKEND_API || 'https://datacapture-backend.onrender.com'}/api/auth/industries`;
+      const url = `${BASE_URL}/api/auth/industries`;
       const response = await fetch(url, {
         headers: this.getHeaders(token)
       });
@@ -631,7 +632,7 @@ static async getLocationsForSelect(token: string): Promise<Array<{
 }>> {
   try {
     console.log('GalleryService: Fetching locations for select');
-    const url = `${process.env.NEXT_PUBLIC_BACKEND_API || 'https://datacapture-backend.onrender.com'}/api/admin/gallery/locations`;
+    const url = `${BASE_URL}/api/admin/gallery/locations`;
     const response = await fetch(url, {
       headers: this.getHeaders(token)
     });
@@ -673,7 +674,7 @@ static async getLocationsForSelect(token: string): Promise<Array<{
 static async getCommissionByCategory(token: string, categoryId: string): Promise<{ success: boolean; data?: { commission: PlatformCommission }; message?: string }> {
   try {
     console.log('GalleryService: Fetching commission for category via admin endpoint:', categoryId);
-    const url = `${process.env.NEXT_PUBLIC_BACKEND_API || 'https://datacapture-backend.onrender.com'}/api/admin/gallery/commission/${categoryId}`;
+    const url = `${BASE_URL}/api/admin/gallery/commission/${categoryId}`;
     const response = await fetch(url, {
       headers: this.getHeaders(token)
     });
@@ -696,7 +697,7 @@ static async getCommissionByCategory(token: string, categoryId: string): Promise
   static async getMediaUsage(token: string): Promise<{ success: boolean; data?: MediaUsage; message?: string }> {
     try {
       console.log('GalleryService: Fetching media usage');
-      const fullUrl = `${process.env.NEXT_PUBLIC_BACKEND_API || 'https://datacapture-backend.onrender.com'}${routes.gallery.mediaUsage}`;
+      const fullUrl = `${BASE_URL}${routes.gallery.mediaUsage}`;
       const response = await fetch(fullUrl, {
         headers: this.getHeaders(token)
       });
@@ -720,7 +721,7 @@ static async getCommissionByCategory(token: string, categoryId: string): Promise
   static async testConnectivity(token: string): Promise<boolean> {
     try {
       console.log('GalleryService: Testing connectivity to', routes.gallery.base);
-      const fullUrl = `${process.env.NEXT_PUBLIC_BACKEND_API || 'https://datacapture-backend.onrender.com'}${routes.gallery.base}`;
+      const fullUrl = `${BASE_URL}${routes.gallery.base}`;
       const response = await fetch(fullUrl, {
         method: 'HEAD',
         headers: this.getHeaders(token)

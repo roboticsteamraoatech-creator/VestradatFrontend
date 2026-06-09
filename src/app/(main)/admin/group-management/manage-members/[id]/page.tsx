@@ -93,18 +93,34 @@ const ManageGroupMembersPage = () => {
 
   const handleMemberToggle = (userId: string) => {
     if (action === 'add') {
-      // Add member to group
       const userToAdd = nonGroupMembers.find(user => user.id === userId);
       if (userToAdd) {
         setGroupMembers(prev => [...prev, userToAdd]);
         setNonGroupMembers(prev => prev.filter(user => user.id !== userId));
       }
     } else {
-      // Remove member from group
       const userToRemove = groupMembers.find(user => user.id === userId);
       if (userToRemove) {
         setNonGroupMembers(prev => [...prev, userToRemove]);
         setGroupMembers(prev => prev.filter(user => user.id !== userId));
+      }
+    }
+  };
+
+  // Reverses a selection made via handleMemberToggle — the user is already in the
+  // opposite list by the time the chip X is clicked, so we must look there.
+  const handleChipRemove = (userId: string) => {
+    if (action === 'add') {
+      const user = groupMembers.find(u => u.id === userId);
+      if (user) {
+        setNonGroupMembers(prev => [...prev, user]);
+        setGroupMembers(prev => prev.filter(u => u.id !== userId));
+      }
+    } else {
+      const user = nonGroupMembers.find(u => u.id === userId);
+      if (user) {
+        setGroupMembers(prev => [...prev, user]);
+        setNonGroupMembers(prev => prev.filter(u => u.id !== userId));
       }
     }
   };
@@ -118,9 +134,10 @@ const ManageGroupMembersPage = () => {
     
     try {
       const groupService = new GroupService();
-      const userIds = action === 'add' 
-        ? groupMembers.map(user => user.id).filter(id => !group.memberIds.includes(id))
-        : groupMembers.map(user => user.id).filter(id => group.memberIds.includes(id));
+      const originalMemberIds = new Set(group.memberIds);
+      const userIds = action === 'add'
+        ? groupMembers.map(user => user.id).filter(id => !originalMemberIds.has(id))
+        : nonGroupMembers.filter(user => originalMemberIds.has(user.id)).map(user => user.id);
       
       if (userIds.length === 0) {
         toast({
@@ -338,14 +355,14 @@ const ManageGroupMembersPage = () => {
                 ) : (
                   <div className="flex flex-wrap gap-2">
                     {groupMembers.filter(user => !group.memberIds.includes(user.id)).map(user => (
-                      <div 
+                      <div
                         key={user.id}
                         className="inline-flex items-center px-3 py-1.5 rounded-full text-sm bg-purple-100 text-purple-800"
                       >
                         {user.name}
                         <button
                           type="button"
-                          onClick={() => handleMemberToggle(user.id)}
+                          onClick={() => handleChipRemove(user.id)}
                           className="ml-2 text-purple-600 hover:text-purple-800"
                         >
                           <X className="w-4 h-4" />
@@ -357,19 +374,19 @@ const ManageGroupMembersPage = () => {
               </div>
             ) : (
               <div>
-                {groupMembers.filter(user => group.memberIds.includes(user.id)).length === 0 ? (
+                {nonGroupMembers.filter(user => group.memberIds.includes(user.id)).length === 0 ? (
                   <p className="text-gray-500 italic">No members selected to remove</p>
                 ) : (
                   <div className="flex flex-wrap gap-2">
-                    {groupMembers.filter(user => group.memberIds.includes(user.id)).map(user => (
-                      <div 
+                    {nonGroupMembers.filter(user => group.memberIds.includes(user.id)).map(user => (
+                      <div
                         key={user.id}
                         className="inline-flex items-center px-3 py-1.5 rounded-full text-sm bg-red-100 text-red-800"
                       >
                         {user.name}
                         <button
                           type="button"
-                          onClick={() => handleMemberToggle(user.id)}
+                          onClick={() => handleChipRemove(user.id)}
                           className="ml-2 text-red-600 hover:text-red-800"
                         >
                           <X className="w-4 h-4" />

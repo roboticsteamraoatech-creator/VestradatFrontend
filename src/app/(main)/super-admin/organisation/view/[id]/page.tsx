@@ -233,17 +233,25 @@ const ViewOrganizationPage: React.FC<ViewOrganizationPageProps> = ({ params }) =
           </div>
           
           <div className="mt-8 pt-6 border-t border-gray-200">
-            <div className="flex items-center">
-              <span className="text-sm text-gray-500 mr-2">Status:</span>
-              <span className={`inline-flex items-center px-2.5 py-0.5 rounded-full text-xs font-medium ${
-                organization?.status === 'active' 
-                  ? 'bg-green-100 text-green-800' 
-                  : organization?.status === 'suspended'
-                    ? 'bg-yellow-100 text-yellow-800'
-                    : 'bg-red-100 text-red-800'
-              }`}>
-                {organization?.status ? organization.status.charAt(0).toUpperCase() + organization.status.slice(1) : 'N/A'}
-              </span>
+            <div className="flex items-center justify-between flex-wrap gap-3">
+              <div className="flex items-center">
+                <span className="text-sm text-gray-500 mr-2">Status:</span>
+                <span className={`inline-flex items-center px-2.5 py-0.5 rounded-full text-xs font-medium ${
+                  organization?.status === 'active'
+                    ? 'bg-green-100 text-green-800'
+                    : organization?.status === 'suspended'
+                      ? 'bg-yellow-100 text-yellow-800'
+                      : 'bg-red-100 text-red-800'
+                }`}>
+                  {organization?.status ? organization.status.charAt(0).toUpperCase() + organization.status.slice(1) : 'N/A'}
+                </span>
+              </div>
+              <button
+                onClick={() => router.push(`/super-admin/org-admins?orgId=${params.id}&orgName=${encodeURIComponent((organization as any)?.organizationName || (organization as any)?.name || '')}`)}
+                className="flex items-center gap-2 px-4 py-2 bg-purple-600 text-white rounded-xl text-sm hover:bg-purple-700 transition-colors"
+              >
+                <Users className="w-4 h-4" /> View Admins
+              </button>
             </div>
           </div>
         </div>

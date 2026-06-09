@@ -95,7 +95,7 @@ export default function MobileAppStaticsPage() {
     setStatsLoading(true);
     setStatsError('');
     try {
-      const token = localStorage.getItem('token') || localStorage.getItem('authToken') || '';
+      const token = localStorage.getItem('userToken') || localStorage.getItem('authToken') || '';
       const res = await apkDownloadService.getDownloadStats(token);
       if (res.success) setStats(res.data as DownloadStats);
       else throw new Error(res.message || 'Failed to fetch statistics');
@@ -112,7 +112,7 @@ export default function MobileAppStaticsPage() {
     setListLoading(true);
     setListError('');
     try {
-      const token = localStorage.getItem('token') || localStorage.getItem('authToken') || '';
+      const token = localStorage.getItem('userToken') || localStorage.getItem('authToken') || '';
       const cleanFilters: DownloadListFilters = Object.fromEntries(
         Object.entries(filters).filter(([, v]) => v !== '' && v !== undefined)
       );

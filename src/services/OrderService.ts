@@ -1,3 +1,4 @@
+﻿import { BASE_URL } from '@/config/api';
 interface BookedPerson {
   name: string;
   firstName: string;
@@ -70,7 +71,7 @@ interface OrdersResponse {
 }
 
 class OrderService {
-  private static BASE_URL = 'https://datacapture-backend.onrender.com';
+  private static BASE_URL = BASE_URL;
 
   /**
    * Initiate payment for a product

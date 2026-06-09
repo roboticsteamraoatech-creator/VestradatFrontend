@@ -73,7 +73,7 @@ const VerificationAssignmentPage = () => {
     try {
       setLoading(true);
       // Get token from auth context or localStorage
-      const token = localStorage.getItem('token') || '';
+      const token = localStorage.getItem('userToken') || '';
       const response = await dataVerificationService.getAllAssignments(token);
       setAssignments(response.data.assignments);
       setFilteredAssignments(response.data.assignments);

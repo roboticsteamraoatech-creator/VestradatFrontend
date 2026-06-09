@@ -1,10 +1,11 @@
-import { NextResponse, NextRequest } from 'next/server';
+﻿import { NextResponse, NextRequest } from 'next/server';
+import { BASE_URL } from '@/config/api';
 
 // GET /api/super-admin/data-verification/verification-stats
 export async function GET(req: NextRequest) {
   try {
     // Call the actual backend API
-    const backendUrl = `https://datacapture-backend.onrender.com/api/super-admin/data-verification/verification-stats`;
+    const backendUrl = `${BASE_URL}/api/super-admin/data-verification/verification-stats`;
     
     const response = await fetch(backendUrl, {
       method: 'GET',

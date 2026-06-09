@@ -1,0 +1,2796 @@
+================================================================================
+ADMIN WEB APP IMPLEMENTATION GUIDE
+DataCapturing & Measurement Platform
+Target: Next.js Web Application (Exact Replica of React Native Admin)
+================================================================================
+
+BASE URL: https://backend-data-capturing-and-measurement.onrender.com/api
+
+AUTHENTICATION:
+  - All protected endpoints require: Authorization: Bearer <token>
+  - Token storage key: "userToken" (AsyncStorage / localStorage / cookie)
+  - Token is a JWT; decode to read: role, organizationId, userId, exp
+  - On 401/403: redirect to /login
+
+ROLE-BASED API PATH ROUTING:
+  - ORGANIZATION role     --> use /admin/* endpoints
+  - CUSTOMER + organizationId --> use /org-user/* endpoints
+  - Regular CUSTOMER      --> use /user/* endpoints
+  - SUPER_ADMIN           --> use /super-admin/* endpoints
+
+CURRENCY: Nigerian Naira (NGN). Always display with symbol: ₦
+  - Use the "actualAmount" field (NOT "priceInDollars") for all price display.
+  - Format: amount.toLocaleString() with ₦ prefix.
+
+IMAGE URL FALLBACK CHAIN (in order):
+  item.imageUrl || item.image || item.picture || item.photo
+
+================================================================================
+SECTION 1: AUTHENTICATION SCREENS
+================================================================================
+
+--------------------------------------------------------------------------------
+SCREEN: LoginScreen
+ROUTE: /login
+--------------------------------------------------------------------------------
+PURPOSE: Email/password login with role-based post-login routing.
+
+UI ELEMENTS:
+  - Email input (keyboard type: email-address, auto-lowercase)
+  - Password input (secureTextEntry toggle with eye icon)
+  - "Login" button (purple #7C3AED, disabled + spinner during loading)
+  - "Forgot Password?" link --> /forgot-password
+  - "Sign Up" link --> /signup
+
+API CALLS:
+  POST /auth/login
+  Body: { email: email.toLowerCase(), password }
+  Response: { jwtToken, user: { role, isVerified, organizationId, _id } }
+
+BUSINESS LOGIC:
+  1. If response.data.user.isVerified === false:
+     - Navigate to /verify-otp with params: { email, fromLogin: true }
+  2. Store jwtToken in localStorage (key: "userToken")
+  3. Role-based routing after storing token:
+     a. SUPER_ADMIN --> /super-admin/dashboard
+     b. ORGANIZATION role:
+        - Call GET /user-subscriptions/user/:userId/status
+        - If hasActiveSubscription === true --> /admin/dashboard
+        - Else --> /subscription-selection
+     c. CUSTOMER with organizationId --> /admin/dashboard (org user area)
+     d. Regular CUSTOMER --> /user/dashboard
+
+ERROR HANDLING:
+  - error.message includes "EMAIL_NOT_VERIFIED" --> redirect to /verify-otp
+  - error.message includes "ACCOUNT_SUSPENDED" --> show alert "Account Suspended"
+  - Generic errors: show error.message in red below form
+
+--------------------------------------------------------------------------------
+SCREEN: ForgotPasswordScreen
+ROUTE: /forgot-password
+--------------------------------------------------------------------------------
+PURPOSE: Enter email to receive OTP for password reset.
+
+UI ELEMENTS:
+  - Email input
+  - "Send Reset Code" button
+  - 60-second resend countdown timer (shown after first send)
+  - "Resend Code" button (disabled during countdown)
+  - Back link to /login
+
+API CALLS:
+  POST /auth/forgot-password
+  Body: { email: email.toLowerCase() }
+  Response: { message, otpData }
+
+BUSINESS LOGIC:
+  - On success: navigate to /reset-password with params: { email, otpData }
+  - Start 60-second countdown; "Resend Code" button disabled until 0
+  - Detect rate limiting: if response.message includes "Please wait" --> show wait message
+  - After countdown reaches 0, allow resend
+
+--------------------------------------------------------------------------------
+SCREEN: ResetPasswordScreen
+ROUTE: /reset-password
+--------------------------------------------------------------------------------
+PURPOSE: Enter 6-digit OTP received via email.
+(This is the OTP entry step between ForgotPassword and SetNewPassword)
+
+PARAMS: { email, otpData }
+
+UI ELEMENTS:
+  - 6 individual digit input boxes (auto-advance on input, auto-backspace on delete)
+  - Countdown timer displaying time remaining
+  - "Verify OTP" button
+  - "Resend OTP" button (active after countdown expires)
+
+API CALLS:
+  POST /auth/verify-otp
+  Body: { email, otp: sixDigitString }
+
+  POST /auth/resend-otp (for resend)
+  Body: { email }
+
+BUSINESS LOGIC:
+  - otpData.remainingAttempts: show attempts remaining
+  - otpData.maxAttempts: total allowed attempts
+  - otpData.otpExpiresIn: set countdown (seconds); fallback to 600 if null
+  - On success: navigate to /set-new-password with params: { email, otp }
+  - On expiry: show "OTP expired. Please request a new one."
+  - Each box: maxLength 1, numeric only
+
+--------------------------------------------------------------------------------
+SCREEN: SetNewPasswordScreen
+ROUTE: /set-new-password
+--------------------------------------------------------------------------------
+PURPOSE: Final step of password reset. Enter and confirm new password.
+
+PARAMS: { email, otp }
+
+UI ELEMENTS:
+  - New Password input (secureTextEntry toggle)
+  - Confirm Password input (secureTextEntry toggle)
+  - "Set New Password" button
+
+API CALLS:
+  POST /auth/reset-password
+  Body: { email: email.toLowerCase(), otp, newPassword }
+
+VALIDATION:
+  - Minimum 6 characters
+  - Passwords must match
+  - Show inline error if validation fails
+
+BUSINESS LOGIC:
+  - On success: navigate to /login (replace history)
+  - Show success message before redirect
+
+--------------------------------------------------------------------------------
+SCREEN: VerifyOTPScreen
+ROUTE: /verify-otp
+--------------------------------------------------------------------------------
+PURPOSE: Email verification for new accounts.
+
+PARAMS: { email, otpData, fromLogin }
+
+UI ELEMENTS:
+  - 6 individual digit input boxes
+  - Timer countdown (format: MM:SS)
+  - "Verify Account" button
+  - "Resend OTP" button
+
+API CALLS:
+  POST /auth/verify-otp
+  Body: { email, otp }
+
+  POST /auth/resend-otp
+  Body: { email }
+
+BUSINESS LOGIC:
+  - If fromLogin === true AND no otpData: auto-call resendOTP() on mount
+  - otpData.otpExpiresIn sets initial countdown (fallback: 600 seconds)
+  - On success: navigate to /login (replace history; do NOT store token or go to dashboard)
+  - On expired OTP: allow resend
+
+================================================================================
+SECTION 2: PROFILE & SETTINGS SCREENS
+================================================================================
+
+--------------------------------------------------------------------------------
+SCREEN: ProfileScreen
+ROUTE: /profile
+--------------------------------------------------------------------------------
+PURPOSE: View user profile with stats and quick actions.
+
+API CALLS:
+  GET /auth/profile
+  Response: { user: { firstName, lastName, email, role, organizationId, phoneNumber, organizationName, country } }
+
+  GET /user/dashboard/stats
+  Response: { totalMeasurements, totalQuestionnaires, daysActive }
+
+UI ELEMENTS:
+  - Avatar (initials if no photo)
+  - Full name, email, role badge
+  - Stats cards: Total Measurements, Total Questionnaires, Days Active
+  - Quick Actions:
+    * Edit Profile --> /edit-profile
+    * Assigned Role --> /user-settings (UserSettings screen)
+    * Help --> /help
+    * Logout
+
+BUSINESS LOGIC:
+  - Logout: remove "userToken" from localStorage, navigate to /login
+  - Stats only show for CUSTOMER role users (personal stats)
+
+--------------------------------------------------------------------------------
+SCREEN: EditProfileScreen
+ROUTE: /edit-profile
+--------------------------------------------------------------------------------
+PURPOSE: Edit user profile information.
+
+API CALLS:
+  GET /auth/profile (on mount to pre-fill)
+  PUT /auth/profile
+  Body: { firstName, lastName, phoneNumber, [country if ORGANIZATION], [organizationName if ORGANIZATION] }
+
+UI ELEMENTS:
+  - First Name input (required)
+  - Last Name input (required)
+  - Phone Number input
+  - Country input (only if role === 'ORGANIZATION')
+  - Organization Name input (only if role === 'ORGANIZATION')
+  - "Save Changes" button (purple, spinner when saving)
+
+VALIDATION:
+  - firstName and lastName required
+  - Show inline validation errors
+
+--------------------------------------------------------------------------------
+SCREEN: BankDetailsScreen
+ROUTE: /admin/bank-details
+--------------------------------------------------------------------------------
+PURPOSE: Register or update organization bank details for remittance.
+
+API CALLS:
+  GET /admin/bank-details
+  Response: { bankDetails: { bankName, accountNumber, accountName } }
+
+  POST /admin/bank-details
+  Body: { bankName, accountNumber, accountName }
+
+UI ELEMENTS:
+  - Bank Name input (required, text)
+  - Account Number input (required, numeric, maxLength 10, min 10 digits)
+  - Account Name input (required)
+  - Submit button: "Save Bank Details" (new) or "Update Bank Details" (existing)
+
+VALIDATION:
+  - accountNumber: numeric only, exactly 10 digits
+
+BUSINESS LOGIC:
+  - On mount: fetch existing bank details; if found, pre-fill form and show "Update" button
+  - On success: show success alert
+
+================================================================================
+SECTION 3: ADMIN DASHBOARD
+================================================================================
+
+--------------------------------------------------------------------------------
+SCREEN: AdminDashboardScreen
+ROUTE: /admin/dashboard
+--------------------------------------------------------------------------------
+PURPOSE: Main dashboard for ORGANIZATION and CUSTOMER-with-orgId roles.
+
+API CALLS:
+  GET /admin/dashboard/stats (for ORGANIZATION role)
+  GET /org-user/dashboard/stats (for CUSTOMER with organizationId, requires view_dashboard_stats permission)
+  Response: {
+    totalUsers, activeUsers, pendingUsers, archivedUsers,
+    totalMeasurements,
+    oneTimeCodesGenerated, oneTimeCodesUsed, oneTimeCodesAvailable
+  }
+
+  GET /admin/notifications/unread-count
+  Response: { unreadCount }
+
+UI ELEMENTS:
+  - Header with notification bell (badge showing unreadCount)
+  - Stats grid (8 cards):
+    * Total Users
+    * Active Users
+    * Pending Users
+    * Archived Users
+    * Total Measurements
+    * Codes Generated
+    * Codes Used
+    * Codes Available
+  - Quick Action grid (scrollable). Actions and their routes:
+    * Export Users --> /admin/export-users
+    * Manage Roles --> /admin/roles
+    * Manage Groups --> /admin/groups
+    * View Measurements --> /admin/measurements
+    * Create User Measurement --> /admin/create-measurement
+    * One-Time Codes --> /admin/one-time-codes
+    * Permissions --> /admin/permissions-management
+    * My Subscription --> /admin/my-subscription
+    * Organization Profile --> [check profile first; see below]
+    * Gallery Management --> /admin/gallery-management
+    * Gallery Items --> /admin/gallery-items
+    * Orders Management --> /admin/orders
+    * Bank Details --> /admin/bank-details
+    * Order Remittances --> /admin/confirmed-deliveries
+    * Service Provider Settlements --> /admin/settlements-management
+    * Service Bookings --> /admin/bookings
+    * Service Provider Management --> /admin/service-provider-management
+    * All Bookings --> /admin/booking-management
+    * Completed Tasks --> /admin/completed-tasks
+
+  - Bottom navigation (ORGANIZATION role only): Dashboard, Users, Measurements, Profile
+
+BUSINESS LOGIC:
+  - Organization Profile navigation:
+    * Call GET /admin/organization-profile
+    * If response.data?.profile?.locations?.length > 0: navigate to /admin/org-locations
+    * Else: navigate to /admin/org-profile-setup
+  - Bottom navigation shown only for role === 'ORGANIZATION'
+  - Refresh on screen focus (re-fetch stats and unread count)
+
+================================================================================
+SECTION 4: USER MANAGEMENT
+================================================================================
+
+--------------------------------------------------------------------------------
+SCREEN: UserManagementScreen
+ROUTE: /admin/users
+--------------------------------------------------------------------------------
+PURPOSE: List, search, filter, and manage organization users.
+
+API CALLS:
+  GET /{baseUrl}/users?page={page}&limit=10&includeOrganization=true
+  Response: {
+    users: [{ _id, id, fullName, email, customUserId, role, status, organizationId, roleId, createdAt }],
+    pagination: { totalPages, total, hasNextPage, hasPrevPage }
+  }
+
+  POST /{baseUrl}/users (create user)
+  Body: { firstName, lastName, email, phoneNumber, role (optional), password (optional), generateNew: bool }
+
+UI ELEMENTS:
+  - Search bar (client-side filter on fullName, email, customUserId)
+  - Status filter tabs: All | Active | Pending | Archived
+  - Paginated user list (10 per page)
+  - Each card: fullName, email, customUserId, status badge, role
+  - "Create User" FAB / button
+  - Create User inline modal:
+    * firstName, lastName, email, phoneNumber (required)
+    * Role dropdown (optional)
+    * generatePassword toggle (Switch)
+    * If generatePassword off: password input (required)
+  - Load More / pagination controls
+
+BUSINESS LOGIC:
+  - Status filtering: client-side after fetch (not query param)
+  - Before creating: check ModuleAccessChecker.checkUsageLimit('orgUsers')
+    * GET /user-subscriptions/check-usage-limit/orgUsers
+    * If limit reached: show upgrade prompt, abort creation
+  - On create success:
+    * If response.data.generatedPassword: store in localStorage key "userPasswords"
+      as JSON { [userId]: password, [customUserId]: password }
+    * Show generated password to admin in success modal
+  - Navigate to user details: fetch GET /{baseUrl}/users/:userId first, then navigate with full user object
+
+STATUS BADGE COLORS:
+  - active: #10B981 (green)
+  - pending: #F59E0B (yellow)
+  - archived: #6B7280 (gray)
+
+--------------------------------------------------------------------------------
+SCREEN: CreateUserScreen
+ROUTE: /admin/create-user
+--------------------------------------------------------------------------------
+PURPOSE: Dedicated screen for creating a new org user.
+
+API CALLS:
+  POST /{baseUrl}/users
+  Body: { firstName, lastName, email, phoneNumber, role (required), generateNew: bool, password? }
+
+UI ELEMENTS:
+  - First Name (required)
+  - Last Name (required)
+  - Email (required)
+  - Phone Number (required)
+  - Role dropdown (required - select from available roles)
+  - "Generate Password" toggle Switch
+  - Password input (shown only if generatePassword === false)
+  - "Create User" button
+
+VALIDATION:
+  - All required fields must be filled
+  - Role must be selected
+  - Detect duplicate email/phone from error message and show friendly message
+
+BUSINESS LOGIC:
+  - If generatePassword toggle is on: send { generateNew: true } without password field
+  - If generatePassword toggle is off: send { password: enteredPassword }
+  - On success: store generated password in "userPasswords" localStorage
+
+--------------------------------------------------------------------------------
+SCREEN: UserDetailsScreen
+ROUTE: /admin/users/:userId
+--------------------------------------------------------------------------------
+PURPOSE: Full detail view of an org user with management actions.
+
+PARAMS/PROPS: initial user object (pre-fetched before navigation)
+
+API CALLS:
+  GET /{baseUrl}/users/:userId (fresh fetch on mount)
+  Response: { user: { ...fields } }
+
+  GET /{baseUrl}/users/:userId/measurements?page=1&limit=20
+  Response: { measurements: [...] }
+
+  PUT /{baseUrl}/users/:userId (edit)
+  Body: { firstName, lastName, email, phoneNumber, role? }
+
+  PUT /{baseUrl}/users/:userId/status
+  Body: { status: 'active'|'pending'|'archived' }
+
+  PUT /{baseUrl}/users/:userId/password
+  Body: { password: newPassword }
+
+  POST /{baseUrl}/users/:userId/send-email
+  Body: { adminMessage, generateNewPassword: true }
+
+UI ELEMENTS:
+  - User info card: fullName, email, customUserId, status badge, role
+  - Password display (retrieved from localStorage "userPasswords" keyed by userId or customUserId)
+  - Status action buttons:
+    * active user: "Archive" button, "Set Pending" button
+    * pending user: "Activate" button, "Archive" button
+    * archived user: "Activate" button
+  - Action buttons: "Reset Password" | "Edit User" | "Send Email" | "View Permissions"
+  - Measurements list (paginated, 20 per page)
+    * hasMore: true if returned count === 20
+    * Each measurement tappable --> /admin/measurements/:id
+
+  - Modals:
+    * Reset Password: new password input, confirm, submit
+    * Edit User: firstName, lastName, email, phoneNumber, role
+    * Send Email: adminMessage textarea (generateNewPassword always true)
+
+STATUS TRANSITION RULES:
+  active --> pending (Set Pending button)
+  active --> archived (Archive button)
+  pending --> active (Activate button)
+  pending --> archived (Archive button)
+  archived --> active (Activate button)
+
+BUSINESS LOGIC:
+  - Password: read from localStorage "userPasswords"[user.id || user.customUserId]
+  - Navigate to MeasurementDetails: /admin/measurements/:measurementId
+  - Navigate to UserPermissions: /admin/users/:userId/permissions
+
+================================================================================
+SECTION 5: ROLES & PERMISSIONS
+================================================================================
+
+--------------------------------------------------------------------------------
+SCREEN: RolesScreen
+ROUTE: /admin/roles
+--------------------------------------------------------------------------------
+PURPOSE: View, manage, and delete roles within the organization.
+
+API CALLS:
+  GET /{baseUrl}/roles?page=1&limit=50&includeUsers=true
+  Response: { roles: [{ _id, name, description, permissions, createdAt }] }
+
+  GET /{baseUrl}/roles/:roleId?includeUsers=true
+  Response: { role: { _id, name, permissions, userCount, assignedUsers: [...] } }
+
+  DELETE /{baseUrl}/roles/:roleId
+
+UI ELEMENTS:
+  - Search bar (client-side filter by name)
+  - Stats banner: Total Roles | Active Roles
+  - Role cards: name, description, permissions count, user count
+  - Role detail modal: permissions list (grouped), assigned users list
+  - "Create Role" FAB --> /admin/create-role
+  - Edit button (per card) --> /admin/create-role?editMode=true&roleId=...
+  - Delete button with confirmation dialog
+
+BUSINESS LOGIC:
+  - After fetching roles list: for each role, fetch individual role by ID to get userCount and assignedUsers
+  - Stats: total = roles.length; active = roles with at least one assigned user (or all, based on UI preference)
+  - Reload after returning from CreateRole if route param refresh === true
+
+--------------------------------------------------------------------------------
+SCREEN: CreateRoleScreen
+ROUTE: /admin/create-role
+QUERY PARAMS (for edit): editMode=true, roleId=..., role=<encoded>
+--------------------------------------------------------------------------------
+PURPOSE: Create or edit a role with permission selection.
+
+API CALLS:
+  GET /{baseUrl}/permissions (fetch available permissions list)
+  Actually called via: GET /org-user/permissions
+  Response: { permissions: [{ key, name, description, category }] }
+
+  POST /{baseUrl}/roles (create)
+  Body: { name, description, permissions: ['permission_key', ...] }
+
+  PUT /{baseUrl}/roles/:roleId (update)
+  Body: { name, description, permissions: ['permission_key', ...] }
+
+UI ELEMENTS:
+  - Role Name input (required)
+  - Description input (required)
+  - Permission search bar
+  - Permission list grouped by category
+  - Each permission: checkbox with name and description
+  - "Select All" toggle
+  - "Select Category" toggle (per category group)
+  - "Create Role" / "Update Role" button
+
+KNOWN PERMISSION KEYS:
+  view_measurements, create_measurements, edit_measurements,
+  view_users, send_emails, view_one_time_codes,
+  view_dashboard_stats, export_data, manage_permissions, user_status
+
+PERMISSION CATEGORIES (grouped in UI):
+  - Body Measurements: view_measurements, create_measurements, edit_measurements
+  - User Management: view_users, send_emails, user_status
+  - One-Time Codes: view_one_time_codes
+  - System & Reports: view_dashboard_stats, export_data, manage_permissions
+
+BUSINESS LOGIC:
+  - On success: navigate to /admin/roles with refresh=true param
+
+--------------------------------------------------------------------------------
+SCREEN: PermissionsManagementScreen
+ROUTE: /admin/permissions-management
+--------------------------------------------------------------------------------
+PURPOSE: Read-only reference screen showing all available permissions.
+
+API CALLS:
+  GET /{baseUrl}/user-permissions
+  Response: { permissions: [{ key, name, description, category }] }
+
+UI ELEMENTS:
+  - Read-only grouped permission cards (no edit functionality)
+  - Common role combinations display:
+    * Measurement Specialist: view_measurements, create_measurements, edit_measurements
+    * Customer Service Rep: view_users, send_emails
+    * Data Manager: view_measurements, export_data, view_dashboard_stats
+
+BUSINESS LOGIC:
+  - This is an informational/reference screen only
+
+--------------------------------------------------------------------------------
+SCREEN: UserPermissionsScreen
+ROUTE: /admin/users/:userId/permissions
+--------------------------------------------------------------------------------
+PURPOSE: Assign a role to a specific user.
+
+PARAMS: { userId, userName }
+
+API CALLS:
+  GET /{baseUrl}/roles (list all available roles)
+
+  GET /{baseUrl}/users/:userId (then read roleId from user.roleId, fetch role details)
+  GET /{baseUrl}/roles/:roleId (to get current role details)
+
+  POST /admin/roles/:roleId/assign
+  Body: { userIds: [userId] }
+
+UI ELEMENTS:
+  - Page title: "Permissions for [userName]"
+  - Current role highlighted with green border
+  - Role cards: each selectable (radio behavior - one at a time)
+  - Role card shows: name, description, permissions list
+  - "Assign Role" button (active only when a role is selected)
+
+BUSINESS LOGIC:
+  - getUserRole: fetches user object, reads user.roleId, fetches role details
+  - Only one role can be assigned at a time (radio selection)
+  - Assigning replaces any existing role
+
+================================================================================
+SECTION 6: GROUPS
+================================================================================
+
+--------------------------------------------------------------------------------
+SCREEN: GroupsScreen
+ROUTE: /admin/groups
+--------------------------------------------------------------------------------
+PURPOSE: View and manage user groups.
+
+API CALLS:
+  GET /{baseUrl}/groups
+  Response: { groups: [{ _id, name, description, createdAt, members: [] }] }
+
+  GET /{baseUrl}/groups/:groupId
+  Response: { group: { _id, name, description, members: [{ fullName, email, role }] } }
+
+  DELETE /{baseUrl}/groups/:groupId
+
+UI ELEMENTS:
+  - Search bar (client-side filter by name)
+  - Status filter: active | inactive
+  - Date filter: today | week | month | quarter
+  - Stats banner: Total Groups | Total Members
+  - Group cards: name, description, member count, createdAt
+  - Group detail modal: member list with search + role filter
+  - Create Group FAB --> /admin/create-group
+  - Edit button --> /admin/create-group?editMode=true&groupId=...
+
+BUSINESS LOGIC:
+  - After fetching groups list: for each group, fetch by ID to get members
+  - Total members = sum of all group member counts
+
+--------------------------------------------------------------------------------
+SCREEN: CreateGroupScreen
+ROUTE: /admin/create-group
+QUERY PARAMS (for edit): editMode=true, groupId=..., group=<encoded>
+--------------------------------------------------------------------------------
+PURPOSE: Create or edit a group with member selection.
+
+API CALLS:
+  GET /{baseUrl}/users?page=1&limit=100 (fetch users to add as members)
+  GET /{baseUrl}/roles (for role filter in user list)
+
+  POST /{baseUrl}/groups (create)
+  Body: { name, description, memberIds: [userId, ...] }
+
+  PUT /{baseUrl}/groups/:groupId (update)
+  Body: { name, description }
+
+  PUT /{baseUrl}/groups/:groupId/members
+  Body: { action: 'add'|'remove', userIds: [userId, ...] }
+
+UI ELEMENTS:
+  - Group Name input (required)
+  - Description input
+  - Search + filter user list (filter by status: all|active|pending, filter by role)
+  - Selectable user rows (checkbox behavior for multi-select)
+  - Selected members count badge
+  - "Create Group" / "Update Group" button
+
+BUSINESS LOGIC:
+  - For each user with a roleId: fetch role by ID to get roleName for display
+  - In edit mode: pre-select existing members
+  - Member removal: use action: 'remove' in members PUT endpoint
+
+================================================================================
+SECTION 7: MEASUREMENTS
+================================================================================
+
+--------------------------------------------------------------------------------
+SCREEN: AdminMeasurementsScreen
+ROUTE: /admin/measurements
+--------------------------------------------------------------------------------
+PURPOSE: View all measurements for the organization with export capability.
+
+API CALLS:
+  GET /{baseUrl}/measurements?page=1&limit=100
+  Response: { measurements: [{ _id, userId, userName, sections, createdAt, notes }] }
+
+UI ELEMENTS:
+  - Search bar (client-side filter)
+  - Status/date filter
+  - Measurement list cards: userName, date, sections count, notes preview
+  - Export to PDF button (uses print/share)
+  - Each card tappable --> /admin/measurements/:id
+
+BUSINESS LOGIC:
+  - Export: generate PDF from measurements data (expo-print + expo-sharing in mobile)
+  - In web: use window.print() or jsPDF for PDF generation
+
+--------------------------------------------------------------------------------
+SCREEN: AdminCreateMeasurementScreen
+ROUTE: /admin/create-measurement
+--------------------------------------------------------------------------------
+PURPOSE: Create a measurement for any organization user.
+
+API CALLS:
+  GET /{baseUrl}/users?page=1&limit=100 (fetch users for dropdown)
+
+  POST /{baseUrl}/measurements
+  Body: {
+    userId: selectedUserId,
+    sections: [
+      {
+        sectionName: "body part name",
+        measurements: [
+          { bodyPartName: "field title", size: 42.5 }
+        ]
+      }
+    ],
+    notes: "optional notes"
+  }
+
+UI ELEMENTS:
+  - User selector dropdown (search/select from org users)
+  - Section builder:
+    * Body Part name input (section header)
+    * Unit selector: 'cm' | 'inches' (dropdown, first section sets unit for all)
+    * Add/remove measurement fields within section
+    * Each field: Title input + Size input (numeric only: digits, decimals, %)
+    * "Add Field" button
+    * "Add Section" button
+  - Notes textarea
+  - "Save Measurement" button
+
+VALIDATION:
+  - User must be selected
+  - At least one section with at least one filled field required
+  - Size field: only numbers, decimals (.), commas (,), percent (%), spaces
+  - Unit change on non-first section: blocked with alert ("Change from first section")
+
+BUSINESS LOGIC:
+  - All sections share the same measurementUnit (set on section 1, propagates to all)
+  - Empty sections/fields are filtered out before submission
+
+--------------------------------------------------------------------------------
+SCREEN: MeasurementDetailsScreen
+ROUTE: /admin/measurements/:measurementId
+--------------------------------------------------------------------------------
+PURPOSE: View full details of a single measurement with PDF export.
+
+PARAMS: { measurementId, measurement (initial data) }
+
+API CALLS:
+  GET /{baseUrl}/measurements/:measurementId
+  Response: { measurement: { _id, userId, userName, sections, notes, measurementUnit, createdAt } }
+
+UI ELEMENTS:
+  - Header with back button and PDF export icon
+  - User info card: userName, date
+  - Sections display: each section shows sectionName, unit, list of { bodyPartName, size }
+  - Notes section (if present)
+  - Edit button --> /admin/edit-measurement/:id
+  - Delete button with confirmation
+
+BUSINESS LOGIC:
+  - Always fetch fresh data on mount (don't rely solely on initial param)
+  - Refresh on return from edit screen (listen to focus event, check refresh param)
+  - PDF export: generate formatted PDF with measurement table
+  - measurementId comes from route params; initial measurement data as prop/param
+
+--------------------------------------------------------------------------------
+SCREEN: AdminEditMeasurementScreen
+ROUTE: /admin/edit-measurement/:measurementId
+--------------------------------------------------------------------------------
+PURPOSE: Edit an existing measurement.
+
+API CALLS:
+  PUT /{baseUrl}/measurements/:measurementId
+  Body: { sections, notes }
+
+  DELETE /{baseUrl}/measurements/:measurementId
+
+UI ELEMENTS:
+  - Same section builder as CreateMeasurement
+  - Pre-filled with existing measurement data
+  - "Update Measurement" button
+  - "Delete Measurement" button (with confirmation)
+
+================================================================================
+SECTION 8: ONE-TIME CODES
+================================================================================
+
+--------------------------------------------------------------------------------
+SCREEN: OneTimeCodesScreen
+ROUTE: /admin/one-time-codes
+--------------------------------------------------------------------------------
+PURPOSE: Generate and manage one-time sharing codes.
+
+API CALLS:
+  GET /{baseUrl}/one-time-codes?page=1&limit=10
+  Response: { codes: [...], pagination: { ... } }
+
+  POST /{baseUrl}/one-time-codes
+  Body: { ... } (code generation data)
+
+  POST /{baseUrl}/one-time-codes/send-email
+  Body: { code: codeString } or full emailData object
+
+UI ELEMENTS:
+  - One-time codes list with status (used/unused)
+  - Generate Code button
+  - Send Email button per code
+  - Pagination controls
+
+BUSINESS LOGIC:
+  - Before generating: check ModuleAccessChecker
+    * GET /user-subscriptions/check-usage-limit/orgUsers
+  - Each code can be emailed to a user for sharing measurements
+
+================================================================================
+SECTION 9: ADMIN BOOKING FLOW (5-STEP)
+================================================================================
+
+The admin booking flow allows organization admins to book services on behalf of customers.
+Flow: SelectDay --> SelectTime --> EnterDetails --> SelectLocation --> ConfirmSchedule
+
+--------------------------------------------------------------------------------
+SCREEN: AdminBookingStep1SelectDayScreen
+ROUTE: /admin/booking/step1
+--------------------------------------------------------------------------------
+PURPOSE: Select available booking day from calendar.
+
+PARAMS: { service } (gallery item object)
+
+API CALLS:
+  GET /admin/booking/available-days?month={month}&year={year}&serviceId={serviceId}
+  Response: { availableDays: ['2024-01-15', '2024-01-16', ...] }
+
+UI ELEMENTS:
+  - Month/year header with prev/next navigation arrows
+  - 6-week calendar grid (Sun-Sat)
+  - Available days: highlighted/clickable (purple)
+  - Unavailable days: grayed out
+  - Selected day: filled purple circle
+  - "Next" button (disabled until day selected)
+
+BUSINESS LOGIC:
+  - Calendar starts from Sunday of the week containing the 1st of the month
+  - On month change: re-fetch available days for new month/year
+  - On "Next": navigate to Step 2 with { service, selectedDate }
+
+--------------------------------------------------------------------------------
+SCREEN: AdminBookingStep2SelectTimeScreen
+ROUTE: /admin/booking/step2
+--------------------------------------------------------------------------------
+PURPOSE: Select available time slot for chosen date.
+
+PARAMS: { service, selectedDate }
+
+API CALLS:
+  GET /admin/booking/available-slots?date={selectedDate}&serviceId={serviceId}
+  Response: { slots: [{ datetime, startTime, endTime, available, providerCount }] }
+
+UI ELEMENTS:
+  - Selected date display (formatted: "Monday, January 15, 2024")
+  - Time slot grid (FlatList)
+  - Each slot: startTime - endTime, duration (from service.bookingAvailability.slotDurationMinutes, fallback 60 min)
+  - Selected slot: purple border/fill
+  - "Next" button (disabled until slot selected)
+  - Back button
+
+BUSINESS LOGIC:
+  - slot selected by: selectedSlot?.datetime === slot.datetime
+  - On "Next": navigate to Step 3 with { service, selectedDate, selectedSlot }
+
+--------------------------------------------------------------------------------
+SCREEN: AdminBookingStep3EnterDetailsScreen
+ROUTE: /admin/booking/step3
+--------------------------------------------------------------------------------
+PURPOSE: Select customer and service provider, enter booking details.
+
+PARAMS: { service, selectedDate, selectedSlot }
+
+API CALLS:
+  GET /admin/booking/organization-users?search={search}&page=1&limit=20
+  Response: { users: [{ id, _id, fullName, email, phoneNumber, customUserId }] }
+
+  GET /service-provider-assignment/detailed
+  Response: { serviceProviders: [{ id, fullName, email, specialties, isActive }] }
+
+UI ELEMENTS:
+  - Customer type toggle: "Existing Customer" | "External Customer"
+  - If "Existing": searchable user list (from org users)
+  - If "External": Name input, Email input, Phone input
+  - Service Provider selector (from org's assigned providers)
+  - Customer Notes textarea
+  - Number of guests (optional)
+  - "Next" button
+
+STATE:
+  customerType: 'existing' | 'external'
+  selectedCustomer: user object (if existing)
+  externalCustomer: { name, email, phone }
+  selectedProvider: provider object
+  serviceProviders: []
+  orgUsers: []
+  customerNotes: ''
+  guests: 0
+
+BUSINESS LOGIC:
+  - On "Next": navigate to Step 4 with { service, selectedDate, selectedSlot, bookingDetails }
+  - bookingDetails object: { customerType, customer (existing object or external data), selectedProvider, customerNotes, guests }
+
+--------------------------------------------------------------------------------
+SCREEN: AdminBookingStep4SelectLocationScreen
+ROUTE: /admin/booking/step4
+--------------------------------------------------------------------------------
+PURPOSE: Select service delivery location type.
+
+PARAMS: { service, selectedDate, selectedSlot, bookingDetails }
+
+API CALLS:
+  GET /admin/booking/location-options?serviceId={serviceId}
+  Response: { locationOptions: { merchant_location: {...}, customer_address: {...}, ... }, defaultOption, organizationName }
+
+  POST /admin/booking/validate-location
+  Body: { locationType, address, whatsappLocationUrl, customerEmail }
+
+UI ELEMENTS:
+  - Location type radio buttons (from locationOptions keys):
+    * merchant_location: "Our Location" (default)
+    * customer_address: "Customer's Address"
+    * whatsapp_location: "WhatsApp Location"
+  - If customer_address: custom address text input
+  - If whatsapp_location: WhatsApp location URL input
+  - Organization name display for merchant_location
+  - "Next" button
+
+BUSINESS LOGIC:
+  - defaultOption from API response sets initial selection
+  - Validate location on "Next" before proceeding
+  - On validation success: navigate to Step 5 with { ..., locationData: validatedLocationData }
+
+--------------------------------------------------------------------------------
+SCREEN: AdminBookingStep5ConfirmScheduleScreen
+ROUTE: /admin/booking/step5
+--------------------------------------------------------------------------------
+PURPOSE: Review summary, select sub-services, calculate pricing, create booking.
+
+PARAMS: { service, selectedDate, selectedSlot, bookingDetails, locationData }
+
+API CALLS:
+  GET /admin/booking/services/:serviceId/sub-services
+  Response: { subServices: { subServices: [...] } } (note: nested)
+  Each subService: { _id, name, price, description, subPlatformUniqueCode }
+
+  POST /admin/booking/calculate-pricing
+  Body: {
+    serviceId,
+    bookedForPersons: [{ name: customerName, selectedSubServices: [subServiceId, ...] }],
+    paymentType: 'upfront' | 'full',
+    upfrontPercentage: number (if paymentType === 'upfront')
+  }
+  Response: { pricing: { totalFee, upfrontFee, remainingFee, breakdowns: [...] } }
+
+  POST /admin/booking/create
+  Body: {
+    serviceId,
+    slotDateTime: selectedSlot.datetime,
+    customerType,
+    customerId (if existing customer),
+    externalCustomer (if external),
+    serviceProviderId,
+    locationData,
+    selectedSubServices: [subServiceId, ...],
+    paymentType: 'upfront'|'full',
+    processPayment: bool,
+    customerNotes,
+    guests
+  }
+  Response: { booking: { bookingId, taskId, slotDateTime, paymentLink, transactionId, serviceName } }
+
+UI ELEMENTS:
+  - Booking summary card: service name, date/time, customer name, provider, location
+  - Sub-services selection (checkboxes)
+  - Payment Type toggle: "Full Payment" | "Upfront Payment"
+  - If Upfront: show upfrontPaymentPercentage and upfrontPaymentAmount from service details
+  - Pricing breakdown card (shown after calculate-pricing API response):
+    * Total Fee, Upfront Fee, Remaining Fee
+  - Process Payment toggle (Switch, default: true)
+  - "Confirm Booking" button
+
+BUSINESS LOGIC:
+  - Sub-services path: response.data.subServices?.subServices || response.data.subServices
+  - upfrontPaymentPercentage: from service.upfrontPaymentPercentage field
+  - On "Confirm Booking":
+    * If processPayment === true AND response.booking.paymentLink:
+      --> navigate to AdminBookingPayment with { booking, paymentLink }
+    * Else: navigate to AdminBookingSuccess with { booking }
+
+--------------------------------------------------------------------------------
+SCREEN: AdminBookingPaymentScreen
+ROUTE: /admin/booking/payment
+--------------------------------------------------------------------------------
+PURPOSE: Payment processing for admin booking via Flutterwave WebView.
+
+PARAMS: { booking, paymentLink }
+
+API CALLS:
+  POST /orders/public/verify
+  Body: { transactionId: booking.transactionId || booking.tx_ref }
+
+UI ELEMENTS:
+  - WebView displaying paymentLink
+  - "Verify Payment" button (manual verification)
+  - 3-minute timeout alert: offers manual verification
+
+BUSINESS LOGIC:
+  - Auto-verify after 3 minutes (timeout) with confirm dialog
+  - On payment verified: navigate to AdminBookingSuccess
+  - transactionId: booking.transactionId || booking.tx_ref
+
+--------------------------------------------------------------------------------
+SCREEN: AdminBookingSuccessScreen
+ROUTE: /admin/booking/success
+--------------------------------------------------------------------------------
+PURPOSE: Booking creation confirmation screen.
+
+PARAMS: { booking }
+
+UI ELEMENTS:
+  - Success checkmark icon (green)
+  - "Booking Created Successfully!" title
+  - Booking details:
+    * Booking ID (booking.bookingId)
+    * Task ID (booking.taskId)
+    * Date/Time (booking.slotDateTime formatted)
+    * Service name
+  - "View Bookings" button --> /admin/booking-management
+  - "Create Another" button --> /admin/gallery-management
+
+--------------------------------------------------------------------------------
+SCREEN: AdminBookingManagementScreen
+ROUTE: /admin/booking-management
+--------------------------------------------------------------------------------
+PURPOSE: View and manage all admin bookings.
+
+API CALLS:
+  GET /admin/bookings?page={page}&limit=20&status={status}&date={date}
+  Response: {
+    bookings: [{
+      bookingId, taskId, status, slotDateTime, serviceName,
+      customerName, serviceProviderName, bookedByAdmin, bookingSource
+    }],
+    pagination: { totalPages, total },
+    total
+  }
+
+  PUT /admin/bookings/:bookingId/status
+  Body: { status, newDate?, newTime?, adminNotes? }
+
+  POST /admin/bookings/:bookingId/assign-provider
+  Body: { serviceProviderId }
+
+UI ELEMENTS:
+  - Status filter tabs: All | Scheduled | Confirmed | Pending | Completed | Cancelled | Rescheduled
+  - Date filter (date picker)
+  - Booking cards: bookingId, service, customer, date/time, status badge, source badge
+  - Source badge: "Admin Booked" (if bookedByAdmin === true) or "Customer Booked"
+  - Per card actions: Update Status, Reassign Provider
+  - Pagination (load more)
+
+STATUS BADGE COLORS:
+  scheduled: #3B82F6, confirmed: #10B981, pending: #F59E0B
+  completed: #10B981, cancelled: #EF4444, rescheduled: #7C3AED
+
+BOOKING SOURCE DETECTION:
+  - bookedByAdmin === true --> "Admin Booked"
+  - bookingSource field (if available)
+  - Fallback: userId presence
+
+================================================================================
+SECTION 10: GALLERY & PRODUCTS
+================================================================================
+
+--------------------------------------------------------------------------------
+SCREEN: GalleryManagementScreen
+ROUTE: /admin/gallery-management
+--------------------------------------------------------------------------------
+PURPOSE: Manage the organization's own gallery items (products and services for sale).
+
+API CALLS:
+  GET /admin/gallery?page={page}&limit=10&category={cat}&minPrice={min}&maxPrice={max}&sortBy=createdAt&sortOrder=desc
+  Response: { items: [{ _id, name, description, category, actualAmount, itemType, imageUrl, totalAvailableQuantity }] }
+
+  DELETE /admin/gallery/:itemId
+
+UI ELEMENTS:
+  - Filter modal: category dropdown, minPrice input, maxPrice input
+  - Gallery item cards:
+    * Image (fallback chain: imageUrl -> image -> picture -> photo)
+    * Name, description
+    * Category
+    * Price: ₦{actualAmount.toLocaleString()} (use actualAmount, NOT priceInDollars)
+    * For products: "Qty: {totalAvailableQuantity}"
+    * For services: "Book" button --> Step 1 of admin booking flow (with { service: item })
+  - Edit button (per card) --> /admin/edit-gallery-item/:itemId
+  - Delete button with confirmation
+  - FAB "+" --> /admin/create-gallery-item
+
+FILTER DEFAULTS: category: '', minPrice: '', maxPrice: ''
+
+--------------------------------------------------------------------------------
+SCREEN: AdminGalleryItemsScreen
+ROUTE: /admin/gallery-items
+--------------------------------------------------------------------------------
+PURPOSE: Browse all platform gallery items (broader catalog, not just org's own).
+
+API CALLS:
+  GET /admin/gallery/items?page=1&limit=20&itemType={type}&categoryId={catId}&search={search}&sortBy=createdAt&sortOrder=desc
+  Response: { items: [{ id, name, itemType, categoryName, actualAmount, imageUrl, canBook, totalAvailableServiceProviders, hasBookingAvailability }] }
+
+  GET /admin/gallery/categories
+  Response: { categories: [{ _id, id, name }] }
+
+UI ELEMENTS:
+  - Search bar
+  - Filter bar: itemType ('service'|'product'|''), categoryId
+  - Item cards:
+    * Image, name, itemType badge
+    * Price: ₦{actualAmount}
+    * For services: "Book Service" button (if canBook === true), provider count
+    * Tappable card --> AdminGalleryItemDetails
+
+NOTE: Uses item.id (not item._id) for navigation
+
+--------------------------------------------------------------------------------
+SCREEN: AdminGalleryItemDetailsScreen
+ROUTE: /admin/gallery-items/:itemId
+--------------------------------------------------------------------------------
+PURPOSE: Full detail view of any platform gallery item.
+
+PARAMS: { itemId }
+
+API CALLS:
+  GET /admin/gallery/items/:itemId
+  Response: {
+    item: {
+      name, description, itemType, categoryName, industryName, platformUniqueCode,
+      priceInDollars, platformChargePercentage, actualAmount, discountPercentage,
+      upfrontPaymentPercentage, upfrontPaymentAmount,
+      producer (for services), totalAvailableServiceProviders, hasSubServices,
+      bookingAvailability: {
+        slotDurationMinutes, concurrentProviders, timezone, isActive,
+        availabilityPeriod: 'unlimited'|'dateRange'|'rollingWeeks',
+        daysAvailable: [{ dayOfWeek, isAvailable, timeWindows }]
+      },
+      totalAvailableQuantity (for products), sku, upc, ingredients,
+      locationDetails: { brandName, fullAddress, landmark, verified },
+      subServices: [{ name, price, description, subPlatformUniqueCode }],
+      canBook, canPurchase
+    }
+  }
+
+UI ELEMENTS:
+  - Large product image
+  - Name, description, type badge
+  - Industry / Category breadcrumb
+  - Platform code display
+  - Pricing section:
+    * Price: ₦{actualAmount} (use actualAmount)
+    * Discount: {discountPercentage}% off (if > 0)
+    * Upfront Payment: {upfrontPaymentPercentage}% = ₦{upfrontPaymentAmount}
+  - Service-specific:
+    * Producer info
+    * Service providers count
+    * Booking availability schedule (days + time windows)
+  - Product-specific:
+    * Stock: {totalAvailableQuantity}
+    * SKU, UPC, Ingredients
+  - Location card: brandName, fullAddress, landmark, verified badge
+  - SubServices list (if hasSubServices)
+  - Action buttons:
+    * "Book Service" (if canBook) --> Admin booking flow Step 1
+    * "Purchase Product" (if canPurchase) --> Admin purchase flow
+
+--------------------------------------------------------------------------------
+SCREEN: CreateGalleryItemScreen / EditGalleryItemScreen
+ROUTE: /admin/create-gallery-item | /admin/edit-gallery-item/:itemId
+--------------------------------------------------------------------------------
+PURPOSE: Create or edit gallery item (product or service).
+
+API CALLS (Create):
+  POST /admin/gallery (multipart/form-data)
+  FormData fields: all item fields as strings/JSON, image file, subServiceImages[]
+
+API CALLS (Edit):
+  PUT /admin/gallery/:itemId
+  Body: JSON (item data)
+
+  POST /admin/gallery/:itemId/upload-image (for image update)
+  FormData: { image: file }
+
+KEY FORM FIELDS:
+  Common: name, description, itemType ('service'|'product'), categoryId, industryId,
+          priceInDollars, platformChargePercentage, discountPercentage
+  Service only: producer, availability (type: 'unlimited'|'dateRange'|'rollingWeeks'),
+                subServices ([{ name, price, description }]),
+                daysAvailable, slotDurationMinutes, concurrentProviders
+  Product only: totalAvailableQuantity, sku, upc, ingredients
+
+BUSINESS LOGIC:
+  - For services: availability must always be sent (default: { type: 'unlimited' })
+  - For products: delete availability field entirely
+  - subServices: remove hasImage field before sending (UI-only field)
+  - Image upload: FormData with 'image' key; subService images as 'subServiceImages' array
+  - Content-Type for multipart: do NOT set manually (browser sets with boundary)
+
+================================================================================
+SECTION 11: ORDERS & PURCHASES
+================================================================================
+
+--------------------------------------------------------------------------------
+SCREEN: AdminPurchaseManagementScreen
+ROUTE: /admin/purchases
+--------------------------------------------------------------------------------
+PURPOSE: View and manage product purchase orders.
+
+API CALLS:
+  GET /admin/purchases?page=1&limit=50&status={status}&date={date}
+  Response: { purchases: [{ _id, status, productName, customerName, amount, createdAt }] }
+
+  GET /admin/purchases/:orderId (detail)
+
+  PUT /admin/purchases/:orderId/status
+  Body: { status, notes? }
+
+STATUS OPTIONS: all, confirmed, pending, processing, shipped, delivered, cancelled
+
+UI ELEMENTS:
+  - Status filter tabs
+  - Date filter
+  - Search bar (client-side: searches on productName, customerName)
+  - Purchase cards: productName, customerName, amount, status badge, date
+  - Tap card --> purchase detail modal
+  - Status update modal: dropdown + notes input
+  - Pull-to-refresh
+
+STATUS BADGE COLORS:
+  confirmed: #10B981, pending: #F59E0B, processing: #3B82F6
+  shipped: #7C3AED, delivered: #10B981, cancelled: #EF4444
+
+--------------------------------------------------------------------------------
+SCREEN: AdminPurchaseFlowScreen
+ROUTE: /admin/purchase/flow
+--------------------------------------------------------------------------------
+PURPOSE: Admin creates a product purchase on behalf of a customer.
+
+API CALLS:
+  GET /admin/purchase/organization-users?search={search}&page=1&limit=20
+  GET /admin/purchase/pickup-centers
+  POST /admin/purchase/create
+  Body: { galleryItemId, customerId, deliveryMode, pickupCenterId?, deliveryAddress?, quantity }
+
+UI ELEMENTS:
+  - Product details display (passed via route params)
+  - Customer selector (search org users)
+  - Delivery mode: pickup_center | delivery_address
+  - If pickup: center selector dropdown
+  - If delivery: address input
+  - Quantity selector
+  - Total price display (₦{actualAmount * quantity})
+  - "Create Purchase" button
+
+--------------------------------------------------------------------------------
+SCREEN: AdminPurchaseSuccessScreen
+ROUTE: /admin/purchase/success
+--------------------------------------------------------------------------------
+PURPOSE: Purchase creation confirmation.
+
+UI ELEMENTS:
+  - Success checkmark
+  - Purchase summary
+  - "View Purchases" button --> /admin/purchases
+  - "Browse Products" button --> /admin/gallery-items
+
+================================================================================
+SECTION 12: SETTLEMENTS & REMITTANCES
+================================================================================
+
+--------------------------------------------------------------------------------
+SCREEN: AdminSettlementsManagementScreen
+ROUTE: /admin/settlements-management
+--------------------------------------------------------------------------------
+PURPOSE: View and manage service provider settlements.
+
+API CALLS:
+  GET /service-provider-settlements/admin/all?status={status}&serviceProviderId={id}
+  Response: {
+    settlements: [{
+      settlementId, serviceProviderId, description, amount, currency,
+      settlementStatus, settlementDate
+    }]
+  }
+
+UI ELEMENTS:
+  - Status filter: all | confirmed | pending | disputed
+  - Stats banner:
+    * Total settlements count
+    * Pending count
+    * Confirmed count
+    * Total Amount (client-side sum of all settlement amounts)
+  - Settlement cards: settlementId, description, amount+currency, status badge, date
+  - Tap card --> /admin/settlement-details/:settlementId
+
+STATUS BADGE COLORS:
+  confirmed: #10B981, pending: #F59E0B, disputed: #EF4444
+
+--------------------------------------------------------------------------------
+SCREEN: AdminSettlementDetailsScreen
+ROUTE: /admin/settlement-details/:settlementId
+--------------------------------------------------------------------------------
+PURPOSE: Full details of a single settlement.
+
+PARAMS: { settlementId }
+
+API CALLS:
+  GET /service-provider-settlements/admin/:settlementId
+  Response: { settlement: { settlementId, serviceProviderId, providerName, providerEmail, description, amount, currency, settlementStatus, settlementDate, bookingId, completionDetails } }
+
+UI ELEMENTS:
+  - Status badge (large, top of screen)
+  - Amount display: {currency} {amount.toLocaleString()}
+  - Provider info: name, email
+  - Booking reference
+  - Dates: scheduled, completed, settlement date
+  - Completion details (if available)
+  - "Process Settlement" button (if status is pending) --> /admin/process-settlement
+
+--------------------------------------------------------------------------------
+SCREEN: AdminProcessSettlementScreen
+ROUTE: /admin/process-settlement
+--------------------------------------------------------------------------------
+PURPOSE: Process a pending settlement (mark as confirmed/paid).
+
+API CALLS:
+  POST /service-provider-settlements/admin/process
+  Body: { settlementId, status: 'confirmed', comment?, amount?, paymentReference? }
+
+UI ELEMENTS:
+  - Settlement summary
+  - Payment reference input
+  - Comment/notes textarea
+  - "Process Payment" button
+
+--------------------------------------------------------------------------------
+SCREEN: ConfirmedDeliveriesScreen
+ROUTE: /admin/confirmed-deliveries
+--------------------------------------------------------------------------------
+PURPOSE: View confirmed product deliveries pending remittance.
+
+API CALLS:
+  GET /orders/super-admin/confirmed-deliveries/all
+  Response: { deliveries: [{ orderId, productName, organizationName, amount, confirmedAt, remittanceStatus }] }
+
+UI ELEMENTS:
+  - Delivery cards: orderId, productName, amount, confirmDate, remittanceStatus
+  - "Process Remittance" button per card --> /admin/process-remittance
+
+--------------------------------------------------------------------------------
+SCREEN: ProcessRemittanceScreen
+ROUTE: /admin/process-remittance
+--------------------------------------------------------------------------------
+PURPOSE: Process remittance for a confirmed delivery.
+
+API CALLS:
+  POST /orders/super-admin/:orderId/process-remittance
+  Body: { bankName, accountNumber, accountName, amount, reference? }
+
+  POST /orders/admin/:orderId/confirm-remittance (for org admin to confirm receipt)
+  Body: { comment }
+
+UI ELEMENTS:
+  - Order summary
+  - Bank details form (if super admin processing)
+  - Confirm receipt form (if org admin confirming)
+  - Submit button
+
+================================================================================
+SECTION 13: TASK NOTIFICATIONS & COMPLETED TASKS
+================================================================================
+
+--------------------------------------------------------------------------------
+SCREEN: AdminTaskNotificationsScreen
+ROUTE: /admin/task-notifications
+--------------------------------------------------------------------------------
+PURPOSE: View notifications about service provider task actions.
+
+API CALLS:
+  GET /admin/notifications?page={page}&limit={limit}
+  Response: { notifications: [{ _id, type, title, message, createdAt, data: { provider, service, customer, financials, rejectionReason } }] }
+
+  PUT /admin/notifications/:notificationId/read
+  PUT /admin/notifications/read-all
+
+NOTIFICATION TYPES & COLORS:
+  task_accepted: icon checkmark-circle, color #10B981, label "Accepted"
+  task_rejected: icon close-circle, color #EF4444, label "Rejected"
+  task_completed: icon trophy, color #7B2CBF, label "Completed"
+  all_providers_rejected: icon warning, color #F59E0B, label "All Rejected"
+
+UI ELEMENTS:
+  - Notification list (FlatList) with time ago display
+  - Per notification: type badge icon, title, message, timeAgo
+  - "Mark All Read" button
+  - Tappable notification --> detail modal
+
+  Detail modal shows:
+    - Type badge with icon
+    - Title, message, formatted date
+    - all_providers_rejected: alert box with service name
+    - Provider info: name, email, phone
+    - Service info: name, date, time, duration, location, notes
+    - Customer info: fullName/firstName, email, phone, customerId
+    - Financials: totalFee, providerFee, settlementStatus
+    - Rejection reason (if rejected)
+
+TIME AGO FORMAT:
+  < 60s: "{n}s ago"
+  < 3600s: "{n}m ago"
+  < 86400s: "{n}h ago"
+  >= 86400s: "{n}d ago"
+
+--------------------------------------------------------------------------------
+SCREEN: AdminCompletedTasksScreen
+ROUTE: /admin/completed-tasks
+--------------------------------------------------------------------------------
+PURPOSE: View list of completed service tasks.
+
+API CALLS:
+  GET /service-provider-tasks/admin/report/completed?includeConfirmation=true
+  Response: { tasks: [{ taskId, serviceName, providerName, customerName, completedAt, amount, remittanceStatus }] }
+
+UI ELEMENTS:
+  - Pull-to-refresh
+  - Task cards: taskId, serviceName, providerName, completedAt, amount (₦)
+  - Remittance status badge
+  - Tap card --> /admin/task-completion-details/:taskId
+
+STATUS BADGE COLORS:
+  pending: #F59E0B, completed: #10B981, failed: #EF4444
+
+CURRENCY FORMAT: ₦{amount?.toLocaleString() || 0}
+
+--------------------------------------------------------------------------------
+SCREEN: AdminCompletedTasksReportScreen
+ROUTE: /admin/completed-tasks-report
+--------------------------------------------------------------------------------
+PURPOSE: Aggregate report/export of completed tasks.
+
+API CALLS:
+  GET /service-provider-tasks/admin/report/completed?includeConfirmation=true&page={page}&limit={limit}
+
+UI ELEMENTS:
+  - Summary stats: total tasks, total revenue
+  - Filtered/sortable task table
+  - Export button (PDF/CSV)
+
+--------------------------------------------------------------------------------
+SCREEN: AdminTaskCompletionDetailsScreen
+ROUTE: /admin/task-completion-details/:taskId
+--------------------------------------------------------------------------------
+PURPOSE: Full details of a completed task including provider media.
+
+PARAMS: { taskId }
+
+API CALLS:
+  GET /service-provider-tasks/admin/tasks/:taskId/completion-details
+  Response: { task: { taskId, serviceName, providerName, providerEmail, completedAt, completionForm: { serviceCompletionDeclaration, images, notes }, financials, customer } }
+
+UI ELEMENTS:
+  - Task summary: service, date, customer, provider
+  - Completion form display: declaration text, images, notes
+  - Financial details: amount, settlement status
+  - Customer info
+
+================================================================================
+SECTION 14: ORGANIZATION PROFILE & VERIFICATION
+================================================================================
+
+--------------------------------------------------------------------------------
+SCREEN: OrganizationProfileScreen
+ROUTE: /admin/org-profile
+--------------------------------------------------------------------------------
+PURPOSE: View and manage organization profile with verification badge.
+
+API CALLS:
+  GET /admin/organization-profile
+  Response: { profile: { businessType, isPublicProfile, verificationStatus, locations: [...] }, verificationStatus }
+
+  GET /admin/organization-profile/verification/check (eligibility check)
+  Response: { eligible, requirements, missingRequirements }
+
+  GET /payment/verified-badge/check-payment-required
+  Response: { paymentRequired, amount }
+
+  POST /admin/organization-profile/verification/submit (submit for verification)
+
+UI ELEMENTS:
+  - Profile info card: businessType, isPublicProfile toggle, verificationStatus
+  - Locations list with status badges
+  - Verification section:
+    * Current status badge (unverified/pending/verified)
+    * Requirements checklist (from eligibility check)
+    * "Submit for Verification" button (if eligible and not already submitted)
+    * Payment prompt (if paymentRequired === true) --> /verified-badge-payment
+  - "Edit Profile" button --> /org-profile-setup
+  - "Add Location" button --> /add-location
+
+LOCATION STATUS LOGIC:
+  - isPaidFor === false --> "Pending Payment" (orange #F59E0B)
+  - verificationStatus === 'verified' --> "Verified" (green #10B981)
+  - verificationStatus === 'rejected' --> "Rejected" (red #EF4444)
+  - else --> "Pending Verification" (orange #F59E0B)
+
+BUSINESS TYPE: 'registered' | 'unregistered'
+
+--------------------------------------------------------------------------------
+SCREEN: OrganizationProfileSetupScreen
+ROUTE: /admin/org-profile-setup
+--------------------------------------------------------------------------------
+PURPOSE: Initial setup or editing of organization profile settings.
+
+API CALLS:
+  GET /auth/profile (to get organizationId)
+
+  POST /admin/organization-profile
+  Body: { businessType, isPublicProfile: bool, verificationStatus }
+
+UI ELEMENTS:
+  - Business Registration Status radio:
+    * "Registered Business" (value: 'registered')
+    * "Unregistered Business" (value: 'unregistered')
+  - Public Profile radio: "Yes" | "No"
+  - Verification Status radio (pre-set)
+  - "Next" button --> /admin/org-locations
+
+BUSINESS LOGIC:
+  - organizationId: userProfile.organizationId || userProfile._id
+  - On success: navigate to /admin/org-locations
+
+--------------------------------------------------------------------------------
+SCREEN: OrganizationLocationsScreen
+ROUTE: /admin/org-locations
+--------------------------------------------------------------------------------
+PURPOSE: View all organization locations and their verification status.
+
+API CALLS:
+  GET /admin/organization-profile
+  Response: { profile: { locations: [{ locationName, fullAddress, isPaidFor, verificationStatus }] } }
+
+UI ELEMENTS:
+  - Location cards: locationName, fullAddress, status badge (see colors above)
+  - "Add Location" FAB --> /admin/add-location
+  - Tap location --> location detail modal
+  - Edit location button --> /admin/add-location?editMode=true&locationIndex={index}
+
+BUSINESS LOGIC:
+  - Reload on screen focus (listener for navigation focus event)
+  - Handle Mongoose metadata cleanup: if location._doc exists, use it; skip keys starting with '$' or '_'
+  - Ensure profile.locations array exists (default [])
+
+--------------------------------------------------------------------------------
+SCREEN: AddLocationScreen
+ROUTE: /admin/add-location
+--------------------------------------------------------------------------------
+PURPOSE: Add or edit an organization location.
+
+API CALLS:
+  POST /admin/organization-profile/locations
+  Body: { locationName, fullAddress, landmark, country, state, lga, city, buildingType, nearbyBuildings }
+
+  PUT /admin/organization-profile/locations/:locationIndex
+  Body: { ...same fields }
+
+  DELETE /admin/organization-profile/locations/:locationIndex
+
+UI ELEMENTS:
+  - Location Name input
+  - Full Address input
+  - Landmark input
+  - Country, State, LGA, City dropdowns (using country-state-city library)
+  - Building Type input
+  - Nearby Buildings input
+  - "Save Location" button
+
+================================================================================
+SECTION 15: SERVICE PROVIDER MANAGEMENT
+================================================================================
+
+--------------------------------------------------------------------------------
+SCREEN: ServiceProviderManagementScreen
+ROUTE: /admin/service-provider-management
+--------------------------------------------------------------------------------
+PURPOSE: Dashboard for service provider module management.
+
+API CALLS:
+  GET /service-provider-assignment/summary
+  Response: { summary: { totalProviders, activeProviders, completedTasks, pendingTasks } }
+
+  POST /service-provider-assignment/module
+  Body: { name, description }
+
+UI ELEMENTS:
+  - If module not created: empty state with "Create Service Provider Module" button
+  - If module exists:
+    * Stats cards: Total Providers | Active | Completed Tasks | Pending Tasks
+    * "View Providers" button --> /admin/service-provider-list
+    * "Assign Providers" button --> /admin/service-provider-assignment
+    * "View History" button --> /admin/service-provider-history
+  - Pull-to-refresh
+
+BUSINESS LOGIC:
+  - Check module existence by calling getSummary; success = module exists
+  - moduleExists state drives which UI to show
+
+--------------------------------------------------------------------------------
+SCREEN: ServiceProviderListScreen
+ROUTE: /admin/service-provider-list
+--------------------------------------------------------------------------------
+PURPOSE: View list of all assigned service providers.
+
+API CALLS:
+  GET /service-provider-assignment/detailed
+  Response: { serviceProviders: [{ id, fullName, email, specialties, isActive, completedTaskCount, ratePerTask }] }
+
+UI ELEMENTS:
+  - Provider cards: fullName, email, specialties, active status badge, task count
+  - Tap card --> /admin/service-provider-profile/:providerId
+  - Pull-to-refresh
+
+--------------------------------------------------------------------------------
+SCREEN: ServiceProviderProfileScreen
+ROUTE: /admin/service-provider-profile/:providerId
+--------------------------------------------------------------------------------
+PURPOSE: View and edit a service provider's full profile.
+
+PARAMS: { providerId, providerData? }
+
+API CALLS:
+  GET /service-provider-assignment/service-provider/:userId
+  Response: { serviceProvider: { id, fullName, email, specialties, rate, currency, frequency, isActive, completionHistory, bankDetails } }
+
+  Fallback: GET /service-provider-assignment/detailed (if detailed endpoint fails)
+
+  PUT /service-provider-assignment/service-provider/:userId
+  Body: { specialties, rate, currency, frequency, isActive }
+
+UI ELEMENTS:
+  - Provider info: fullName, email, status badge
+  - Stats: completed tasks, success rate
+  - Specialties list (tags)
+  - Rate: {currency} {rate} / {frequency}
+  - Edit modal (on edit button press):
+    * Specialties: add/remove tags
+    * Currency dropdown (USD, NGN, GBP, EUR, CAD, AUD, JPY, CHF, CNY, INR)
+    * Rate input (numeric)
+    * Frequency dropdown (hourly, daily, weekly, monthly, per project, per task, quarterly, annually)
+    * Active toggle Switch
+  - "Save Changes" button in modal
+
+CURRENCY OPTIONS: USD, NGN, GBP, EUR, CAD, AUD, JPY, CHF, CNY, INR
+FREQUENCY OPTIONS: hourly, daily, weekly, monthly, per project, per task, quarterly, annually
+
+================================================================================
+SECTION 16: SUBSCRIPTION MANAGEMENT (Organization)
+================================================================================
+
+--------------------------------------------------------------------------------
+SCREEN: MySubscriptionScreen
+ROUTE: /admin/my-subscription
+--------------------------------------------------------------------------------
+PURPOSE: View current subscription details, usage, and upgrade options.
+
+API CALLS:
+  GET /user-subscriptions/user/:userId/active
+  (userId fetched from GET /auth/profile)
+  Response: {
+    subscription: {
+      packageId, packageTitle, subscriptionDuration, status,
+      startDate, endDate, autoRenew,
+      amountPaid, originalAmount, discountApplied, promoCodeUsed, paymentStatus,
+      enabledModules: ['body_measurements', 'user_management', ...],
+      packageDetails: { description, features: [], note },
+      services: [{ serviceName, duration }],
+      limits: { maxBodyMeasurements, maxOrgUsers },
+      usage: { bodyMeasurementsCreated, orgUsersCreated }
+    }
+  }
+
+UI ELEMENTS:
+  - If no subscription: empty state with "Browse Packages" button --> /subscription-selection
+  - Current Package card:
+    * Package title (purple, large)
+    * Package ID, Duration
+    * Status badge: ACTIVE (green #10B981) | other (red)
+    * Description
+  - Payment Information card:
+    * Amount Paid: ₦{amountPaid.toLocaleString()}
+    * Original Amount (if different, strikethrough)
+    * Discount Applied (green, negative value)
+    * Promo Code (if used, purple)
+    * Payment Status badge
+    * Auto Renew status (green "Enabled" / red "Disabled")
+  - Subscription Period card:
+    * Start Date | End Date
+  - Enabled Modules card:
+    * Green chip tags for each module (formatted: 'body_measurements' --> 'BODY MEASUREMENTS')
+  - Package Features card (if packageDetails.features exists):
+    * Checkmark list
+    * Package note (italic, purple background)
+  - Included Services card (if services.length > 0)
+  - Usage Statistics card:
+    * Progress bar for Body Measurements: used/max
+    * Progress bar for Organization Users: used/max
+    * Color: red (>= 90%), yellow (>= 70%), green (< 70%)
+    * Percentage text below bar
+  - Upgrade Package button --> /upgrade-subscription
+
+USAGE PERCENTAGE FORMULA: Math.round((used / max) * 100)
+USAGE COLOR: >= 90 --> #EF4444, >= 70 --> #F59E0B, < 70 --> #10B981
+
+--------------------------------------------------------------------------------
+SCREEN: BillingHistoryScreen
+ROUTE: /admin/billing-history
+--------------------------------------------------------------------------------
+PURPOSE: View organization billing transaction history.
+
+API CALLS:
+  GET /organization/billing-history (APPROXIMATE - check actual endpoint)
+  Or: GET /user-subscriptions/user/:userId/history
+  Response: { billingHistory: [{ id, date, description, amount, status }] }
+
+UI ELEMENTS:
+  - Bill cards: date, description, amount (₦), status badge
+  - Empty state if no history
+
+STATUS BADGE COLORS:
+  paid: #10B981, pending: #F59E0B, failed: #EF4444, refunded: #6B7280
+
+DATE FORMAT: new Date(dateString).toLocaleDateString('en-US', { year:'numeric', month:'short', day:'numeric' })
+
+================================================================================
+SECTION 17: SUPER ADMIN SCREENS
+================================================================================
+
+All SUPER_ADMIN screens:
+1. Check role on mount: GET /auth/profile --> role must be 'SUPER_ADMIN'
+2. If not SUPER_ADMIN: show "Access Denied" alert and navigate back
+
+--------------------------------------------------------------------------------
+SCREEN: SuperAdminDashboardScreen
+ROUTE: /super-admin/dashboard
+--------------------------------------------------------------------------------
+PURPOSE: Super admin main dashboard.
+
+API CALLS:
+  GET /super-admin/dashboard-stats
+  Response: { stats: { totalOrganizations, totalUsers, totalRevenue, activeSubscriptions, ... } }
+
+  GET /super-admin/profile
+  Response: { displayName, fullName, firstName, lastName }
+
+UI ELEMENTS:
+  - Stats grid
+  - Navigation to all super admin sections
+
+NOTE: User display name merged from /super-admin/profile on top of /auth/profile data.
+
+--------------------------------------------------------------------------------
+SCREEN: OrganizationManagementScreen
+ROUTE: /super-admin/organizations
+--------------------------------------------------------------------------------
+PURPOSE: View and manage all organization accounts.
+
+API CALLS:
+  GET /super-admin/admins?page=1&limit=100&search={search}
+  Response: { admins: [{ id, organizationId, organizationName, email, status, createdAt }] }
+
+  PUT /super-admin/organizations/:orgId/status
+  Body: { status: 'active'|'suspended'|'inactive' }
+
+  POST /super-admin/organizations
+  Body: { organizationName, email, phoneNumber, address, contactPerson }
+
+UI ELEMENTS:
+  - Search bar (client-side filter by organizationName, email)
+  - Status filter tabs: All | Active | Suspended | Inactive
+  - Organization cards: organizationName, email, status badge
+  - Create Organization modal:
+    * organizationName, email, phoneNumber, address, contactPerson
+  - Details modal: show all org fields + status change actions
+  - Tap card --> /super-admin/org-details (pass organizationData)
+
+NOTE: Status filtering is client-side (not query param)
+
+STATUS OPTIONS & COLORS:
+  active: #10B981, suspended: #EF4444, inactive: #F59E0B
+
+--------------------------------------------------------------------------------
+SCREEN: OrganizationDetailsScreen
+ROUTE: /super-admin/org-details
+--------------------------------------------------------------------------------
+PURPOSE: View full organization details and update status.
+
+PARAMS: { organizationData }
+
+API CALLS:
+  PUT /super-admin/organizations/:orgId/status
+  Body: { status }
+
+UI ELEMENTS:
+  - Org avatar (first letter of organizationName, uppercase)
+  - organizationName, email, status badge
+  - All org fields display
+  - Status action buttons (activate/suspend/deactivate)
+  - "View Admins" button --> /super-admin/org-admins with { orgId, orgName }
+
+--------------------------------------------------------------------------------
+SCREEN: OrganizationAdminsScreen
+ROUTE: /super-admin/org-admins
+--------------------------------------------------------------------------------
+PURPOSE: View admins within a specific organization.
+
+PARAMS: { orgId, orgName }
+
+API CALLS:
+  GET /super-admin/organizations/:orgId/users?page=1&limit=100
+  Response: { users: [{ fullName, email, role, createdAt }] }
+
+  PUT /super-admin/users/:userId/reset-password
+  Body: {}
+  Response: { newPassword }
+
+UI ELEMENTS:
+  - Header: "Organization Admins" with orgName subtitle
+  - Search bar (client-side filter by fullName, email)
+  - Admin cards: fullName, email, role badge, joinDate
+  - "Reset Password" button per card --> shows new password in alert
+
+FILTER LOGIC: Only show users with role === 'ORGANIZATION' || role === 'ADMIN'
+
+--------------------------------------------------------------------------------
+SCREEN: CustomerManagementScreen
+ROUTE: /super-admin/customers
+--------------------------------------------------------------------------------
+PURPOSE: View and manage customer accounts.
+
+API CALLS:
+  GET /super-admin/customers?page=1&limit=50&status={status}
+  (status: null if 'all')
+  Response: { customers: [{ _id, customerName, email, phoneNumber, state, lga, address, customerId, status }] }
+
+  POST /super-admin/customers (create customer)
+  Body: { customerName (required), email (required), phoneNumber, state, lga, address, customerId }
+
+UI ELEMENTS:
+  - Search bar (client-side filter)
+  - Status filter: All | Active | Suspended | Inactive
+  - Customer cards: customerName, email, phoneNumber, status badge
+  - Create Customer modal
+
+REQUIRED FIELDS: customerName, email
+
+--------------------------------------------------------------------------------
+SCREEN: SubscriptionManagementScreen
+ROUTE: /super-admin/subscriptions
+--------------------------------------------------------------------------------
+PURPOSE: View and manage subscription packages.
+
+API CALLS:
+  GET /super-admin/subscriptions?page=1&limit=50&status={status}
+  (status: null if 'all')
+  Response: { packages: [{ _id, packageName, services, monthlyPrice, quarterlyPrice, yearlyPrice, description, status }] }
+
+  POST /super-admin/subscriptions (create)
+  Body: { packageName, services, monthlyPrice (float), quarterlyPrice (float), yearlyPrice (float), description, promoStartDate?, promoEndDate? }
+
+UI ELEMENTS:
+  - Status filter: All | Active | Inactive
+  - Search bar (client-side)
+  - Package cards: packageName, prices (monthly/quarterly/yearly in ₦), status, description
+  - Create Package modal: all fields above
+  - Tap card --> /super-admin/subscription-details/:subscriptionId
+
+--------------------------------------------------------------------------------
+SCREEN: SubscriptionDetailsScreen
+ROUTE: /super-admin/subscription-details/:subscriptionId
+--------------------------------------------------------------------------------
+PURPOSE: Full details of a subscription package including subscribers.
+
+PARAMS: { subscriptionId }
+
+API CALLS:
+  GET /super-admin/subscriptions/:subscriptionId
+  Response: { package: { ...packageData } }
+
+  GET /super-admin/subscriptions/:subscriptionId/subscribers
+  Response: { subscribers: [{ orgName, email, subscribedAt, status }] }
+
+  GET /super-admin/subscriptions/export/:format (export)
+
+UI ELEMENTS:
+  - Package details display
+  - Subscribers list
+  - Export buttons (CSV/PDF)
+
+--------------------------------------------------------------------------------
+SCREEN: PaidSubscriptionsScreen
+ROUTE: /super-admin/paid-subscriptions
+--------------------------------------------------------------------------------
+PURPOSE: View all active paid subscription records.
+
+API CALLS:
+  GET /super-admin/paid-subscriptions?page={page}&limit=10&sortBy=createdAt&sortOrder=desc&search={search}
+  Response: { subscriptions: [...], totalPages, total }
+
+UI ELEMENTS:
+  - Search bar (500ms debounce, searches: search, searchName, searchEmail, searchPackage)
+  - Subscription list with pagination
+  - Each record: orgName, package name, amount, startDate, endDate, status
+  - Prev/Next pagination controls
+
+DEBOUNCE: 500ms on search input before API call
+
+--------------------------------------------------------------------------------
+SCREEN: SystemAnalyticsScreen
+ROUTE: /super-admin/analytics
+--------------------------------------------------------------------------------
+PURPOSE: Platform-wide analytics dashboard.
+
+API CALLS:
+  GET /super-admin/analytics (APPROXIMATE)
+  Response: { userGrowth, orgGrowth, revenueGrowth, activeSessions }
+
+UI ELEMENTS:
+  - Analytics cards:
+    * User Growth (value: analytics.userGrowth || '0%', icon: trending-up, color: #10B981)
+    * Organization Growth (analytics.orgGrowth || '0%', icon: business, color: #7C3AED)
+    * Revenue Growth (analytics.revenueGrowth || '0%', icon: cash, color: #F59E0B)
+    * Active Sessions (analytics.activeSessions || '0', icon: pulse, color: #EF4444)
+
+--------------------------------------------------------------------------------
+SCREEN: SystemSettingsScreen
+ROUTE: /super-admin/settings
+--------------------------------------------------------------------------------
+PURPOSE: Platform configuration (mostly UI toggles, no live API save currently).
+
+UI ELEMENTS:
+  - maintenanceMode toggle Switch
+  - allowRegistrations toggle Switch
+  - maxUsersPerOrg numeric input
+  - sessionTimeout numeric input (hours)
+  - emailNotifications toggle Switch
+  - systemName text input
+  - supportEmail text input
+  - "Save Settings" button
+  - Export System Data buttons (CSV, Excel, PDF)
+
+NOTE: saveSettings currently shows success alert only (implementation pending live API).
+
+--------------------------------------------------------------------------------
+SCREEN: IndustryManagementScreen
+ROUTE: /super-admin/industries
+--------------------------------------------------------------------------------
+PURPOSE: Manage industry categories for the platform.
+
+API CALLS:
+  GET /super-admin/industries
+  Response: { industries: [{ id, name, description, createdAt }] }
+
+  POST /super-admin/industries
+  Body: { name, description }
+
+  PUT /super-admin/industries/:id
+  Body: { name, description }
+
+  DELETE /super-admin/industries/:id
+
+UI ELEMENTS:
+  - Search bar (client-side filter by name)
+  - Industry list (FlatList)
+  - Industry cards: name, description, createdAt
+  - Create/Edit modal: name (required), description (required)
+  - "Create Industry" FAB
+  - Edit/Delete buttons per card
+  - Pull-to-refresh
+
+VALIDATION: name and description both required
+
+--------------------------------------------------------------------------------
+SCREEN: CategoryManagementScreen
+ROUTE: /super-admin/categories
+--------------------------------------------------------------------------------
+PURPOSE: Manage product/service categories linked to industries.
+
+API CALLS:
+  GET /super-admin/industries (for industry dropdown)
+  GET /super-admin/categories?industryId={id} (filtered) or /super-admin/categories (all)
+  POST /super-admin/categories
+  Body: { name, industryId, description }
+  PUT /super-admin/categories/:id
+  DELETE /super-admin/categories/:id
+
+UI ELEMENTS:
+  - Industry filter dropdown
+  - Category list with cards: name, industryName, description, createdAt
+  - Create/Edit modal: name (required), industryId dropdown (required), description (required)
+
+DATE FORMAT: new Date(createdAt).toLocaleDateString()
+
+--------------------------------------------------------------------------------
+SCREEN: PickupCenterManagementScreen
+ROUTE: /super-admin/pickup-centers
+--------------------------------------------------------------------------------
+PURPOSE: Manage product pickup centers for delivery.
+
+API CALLS:
+  GET /super-admin/pickup-centers?isActive={filter}
+  (filter: null/'all' for all, 'true'/'false' for active/inactive)
+  Response: { pickupCenters: [{ _id, centerName, amount, address, contactNumber, operatingDays, operatingHours, isActive }] }
+
+  POST /super-admin/pickup-centers
+  Body: { centerName, amount, address, contactNumber, operatingDays, operatingHours }
+
+  PUT /super-admin/pickup-centers/:id
+  DELETE /super-admin/pickup-centers/:id
+
+UI ELEMENTS:
+  - Filter: All | Active | Inactive
+  - Center cards: centerName, address, contactNumber, operatingDays, operatingHours, amount, active badge
+  - Create/Edit modal: all fields
+  - "Create Pickup Center" FAB
+  - Pull-to-refresh
+
+VALIDATION:
+  - operatingDays format: "Monday - Friday" (regex: day - day)
+  - operatingHours format: "9:00 AM - 5:00 PM" (regex: H:MM AM/PM - H:MM AM/PM)
+  - All fields required
+  - Prevent double submission (submitting state)
+
+--------------------------------------------------------------------------------
+SCREEN: PlatformCommissionManagementScreen
+ROUTE: /super-admin/platform-commissions
+--------------------------------------------------------------------------------
+PURPOSE: Manage platform commission rates by industry/category.
+
+API CALLS:
+  GET /super-admin/industries
+  GET /super-admin/categories?industryId={id} (when industryId selected in form)
+  GET /super-admin/platform-commissions?industryId={filter}
+  Response: { commissions: [{ _id, commissionName, commissionRate, industryId, categoryId, description }] }
+
+  POST /super-admin/platform-commissions
+  Body: { commissionName, commissionRate (float), industryId, categoryId (optional), description }
+
+  PUT /super-admin/platform-commissions/:id
+  DELETE /super-admin/platform-commissions/:id
+
+UI ELEMENTS:
+  - Industry filter dropdown (fetches commissions filtered by industry)
+  - Commission list: commissionName, commissionRate%, industry, category, description
+  - Create/Edit modal:
+    * Commission Name
+    * Commission Rate (%) numeric
+    * Industry dropdown (required)
+    * Category dropdown (populated after industry selection)
+    * Description
+  - "Create Commission" FAB
+
+DYNAMIC: Category dropdown populates when industryId changes in form
+
+--------------------------------------------------------------------------------
+SCREEN: DefaultPricingManagementScreen
+ROUTE: /super-admin/default-pricing
+--------------------------------------------------------------------------------
+PURPOSE: Manage hierarchical location-based pricing.
+
+API CALLS:
+  GET /super-admin/default-pricing
+  Response: { pricing: [{ _id, country, state, lga, city, defaultFee, description }] }
+
+  POST /super-admin/default-pricing
+  PUT /super-admin/default-pricing/:id
+  DELETE /super-admin/default-pricing/:id
+  Body (create/update): { country, state, lga, city, defaultFee, description }
+
+  LOCAL: getExternalCountries(), getExternalStates(country), getExternalLGAs(country, state), getExternalCities(country, state, lga)
+  (Uses 'country-state-city' npm package - NOT API calls)
+
+UI ELEMENTS:
+  - Pricing list: location display (most specific level), defaultFee, description
+  - Create/Edit modal:
+    * Country dropdown (SearchableDropdown, with "Others" option)
+    * State dropdown (populated from country)
+    * LGA dropdown (populated from country+state)
+    * City dropdown (populated from country+state+lga)
+    * Default Fee (₦) numeric input
+    * Description input
+  - Delete with confirmation
+  - "Create Pricing" FAB
+
+DISPLAY LEVEL LOGIC (most specific to least):
+  if city --> show as "City Level"
+  else if lga --> show as "LGA Level"
+  else if state --> show as "State Level"
+  else --> show as "Country Level"
+
+NIGERIA LGA DATA: Pre-built list in code for Lagos, Ogun, Kano, Rivers, Abuja.
+  For other countries/states: uses country-state-city library cities as LGAs.
+
+--------------------------------------------------------------------------------
+SCREEN: DataVerificationManagementScreen
+ROUTE: /super-admin/data-verification
+--------------------------------------------------------------------------------
+PURPOSE: Super admin review of data verification submissions.
+
+API CALLS:
+  GET /super-admin/data-verification/verifications?status={status}
+  Response: { verifications: [{ _id, organizationName, submittedBy, status, createdAt, comments }] }
+
+  GET /super-admin/data-verification/verification-stats
+  Response: { stats: { total, submitted, approved, rejected } }
+
+  POST /super-admin/data-verification/verifications/:id/review
+  Body: { status: 'approved'|'rejected', comments }
+
+STATUS FILTER: all | submitted | approved | rejected
+
+UI ELEMENTS:
+  - Stats banner: total, submitted, approved, rejected
+  - Status filter tabs
+  - Verification cards: organizationName, submittedBy, status badge, date
+  - Review actions per card: "Approve" button, "Reject" button
+  - Reject: show reason input modal before submitting
+
+STATUS BADGE COLORS:
+  submitted: #3B82F6, approved: #10B981, rejected: #EF4444
+
+--------------------------------------------------------------------------------
+SCREEN: VerificationManagementScreen
+ROUTE: /super-admin/location-verifications
+--------------------------------------------------------------------------------
+PURPOSE: Review and approve/reject organization location verification requests.
+
+API CALLS:
+  GET /super-admin/location-verifications/pending
+  Response: { pendingLocationVerifications: [...] }
+
+  GET /super-admin/location-verifications/rejected
+  Response: { rejectedLocationVerifications: [...] }
+
+  GET /super-admin/location-verifications/verified
+  Response: { verifiedLocationVerifications: [...] }
+
+  PUT /super-admin/location-verifications/:profileId/:locationIndex/approve
+
+  PUT /super-admin/location-verifications/:profileId/:locationIndex/reject
+  Body: { reason }
+
+  POST /super-admin/location-verifications/:profileId/:locationIndex/send-rejection-email
+
+FILTER TABS: pending | rejected | verified
+
+UI ELEMENTS:
+  - Filter tabs
+  - Pull-to-refresh
+  - Location verification cards: orgName, location address, submitted date, status
+  - "Approve" button (green)
+  - "Reject" button (with reject reason modal)
+  - "Send Rejection Email" button (for rejected items)
+
+REJECT MODAL: reason textarea + "Reject" submit button
+
+--------------------------------------------------------------------------------
+SCREEN: VerificationDetailsScreen
+ROUTE: /super-admin/verification-details/:verificationId
+--------------------------------------------------------------------------------
+PURPOSE: View full details of a verification (assignment or actual verification).
+
+PARAMS: { verificationId, isAssignment: bool }
+
+API CALLS (if isAssignment === true):
+  GET /data-verification/assignments/my
+  Response: { assignments: [{ _id, ... }] }
+  Find by verificationId.
+
+API CALLS (if isAssignment === false):
+  GET /data-verification/my-verifications
+  Response: { verifications: [{ _id, ... }] }
+  Find by verificationId.
+
+UI ELEMENTS:
+  - Verification status badge (approved/rejected/pending)
+  - Full detail display: organization info, location, images
+  - Rejection reason (if rejected)
+  - Approval date (if approved)
+
+STATUS BADGE COLORS: approved: #4CAF50, rejected: #F44336, pending: #FF9800
+STATUS ICONS: approved: checkmark-circle, rejected: close-circle, pending: time
+
+--------------------------------------------------------------------------------
+SCREEN: SuperAdminOrdersScreen
+ROUTE: /super-admin/orders
+--------------------------------------------------------------------------------
+PURPOSE: View all platform orders across all organizations.
+
+API CALLS:
+  GET /orders/super-admin/all?page={page}&limit=20
+  Response: { orders: [{ _id, productName, organizationName, customerName, orderStatus, totalAmount, createdAt }], totalPages, totalOrders }
+
+UI ELEMENTS:
+  - Search bar (client-side filter)
+  - Order list with pagination
+  - Order cards: productName, orgName, customerName, status badge, amount (₦), date
+  - Tap card --> /super-admin/order-details/:orderId
+
+STATUS BADGE COLORS & BG:
+  pending: text #F59E0B, bg #FEF3C7
+  partially_paid: text #3B82F6, bg #DBEAFE
+  fully_paid: text #10B981, bg #D1FAE5
+  cancelled: text #EF4444, bg #FEE2E2
+
+CURRENCY FORMAT: Intl.NumberFormat('en-NG', { style:'currency', currency:'NGN' })
+PAGINATION: prev/next buttons based on currentPage/totalPages
+
+--------------------------------------------------------------------------------
+SCREEN: SuperAdminOrderDetailsScreen
+ROUTE: /super-admin/order-details/:orderId
+--------------------------------------------------------------------------------
+PURPOSE: Full order details view for super admin.
+
+PARAMS: { orderId }
+
+API CALLS:
+  GET /orders/super-admin/:orderId
+  Response: { order: { _id, productName, itemType, orderStatus, paymentStatus, totalAmount, organizationName, customerInfo, deliveryInfo, paymentHistory, createdAt } }
+
+UI ELEMENTS:
+  - Pull-to-refresh
+  - Order status badge (same colors as list)
+  - Payment status badge (successful: #10B981, pending: #F59E0B, failed: #EF4444)
+  - Order summary: productName, itemType, organization, customer
+  - Financial details: totalAmount (₦), payment breakdown
+  - Delivery info
+  - Payment history timeline
+
+CURRENCY FORMAT: same Intl.NumberFormat as list screen
+
+--------------------------------------------------------------------------------
+SCREEN: UsersListScreen
+ROUTE: /admin/users-list
+--------------------------------------------------------------------------------
+PURPOSE: List users (accessible by both ORGANIZATION and permission-based CUSTOMER).
+
+API CALLS:
+  GET /auth/profile (to determine role)
+  GET /{baseUrl}/permissions (for permission check)
+
+  If ORGANIZATION: GET /admin/users
+  If CUSTOMER with org: GET /org-user/users
+  Response: { users: [...] }
+
+UI ELEMENTS:
+  - Search bar (client-side filter by fullName, email)
+  - Status filter: all | active | pending | archived
+  - User list with role badges
+  - If isOrganizationAdmin: shows edit/delete actions
+  - If permission-based: shows actions only if hasPermission('view_users')
+
+PERMISSION CHECK: permissions.some(p => p.key === key || p === key)
+
+================================================================================
+SECTION 18: COMPLETE API ENDPOINT REFERENCE
+================================================================================
+
+--- AUTHENTICATION ---
+POST   /auth/login                              Login
+POST   /auth/register                           Register
+GET    /auth/profile                            Get user profile (+ auto-merges super admin data)
+PUT    /auth/profile                            Update profile
+POST   /auth/verify-otp                         Verify OTP
+POST   /auth/resend-otp                         Resend OTP
+POST   /auth/forgot-password                    Request password reset
+POST   /auth/reset-password                     Reset password with OTP
+
+--- ROLE-BASED USERS (path prefix varies by role) ---
+GET    /{prefix}/users                          List users (page, limit, includeOrganization)
+GET    /{prefix}/users/:id                      Get user by ID
+POST   /{prefix}/users                          Create user
+PUT    /{prefix}/users/:id                      Update user
+PUT    /{prefix}/users/:id/status               Update user status
+PUT    /{prefix}/users/:id/password             Reset user password
+POST   /{prefix}/users/:id/send-email           Send email to user
+GET    /{prefix}/users/:id/measurements         Get user measurements
+
+--- ROLE-BASED MEASUREMENTS ---
+GET    /{prefix}/measurements                   List measurements (page, limit, userId)
+GET    /{prefix}/measurements/:id               Get measurement
+POST   /{prefix}/measurements                   Create measurement
+PUT    /{prefix}/measurements/:id               Update measurement
+DELETE /{prefix}/measurements/:id               Delete measurement
+
+--- ROLE-BASED ROLES ---
+GET    /{prefix}/roles                          List roles (page, limit, includeUsers)
+GET    /{prefix}/roles/:id                      Get role (includeUsers)
+POST   /{prefix}/roles                          Create role
+PUT    /{prefix}/roles/:id                      Update role
+DELETE /{prefix}/roles/:id                      Delete role
+POST   /admin/roles/:id/assign                  Assign role to users (body: {userIds})
+
+--- ROLE-BASED GROUPS ---
+GET    /{prefix}/groups                         List groups
+GET    /{prefix}/groups/:id                     Get group
+POST   /{prefix}/groups                         Create group
+PUT    /{prefix}/groups/:id                     Update group
+PUT    /{prefix}/groups/:id/members             Add/remove members (body: {action, userIds})
+DELETE /{prefix}/groups/:id                     Delete group
+
+--- ROLE-BASED ONE-TIME CODES ---
+GET    /{prefix}/one-time-codes                 List codes (page, limit)
+POST   /{prefix}/one-time-codes                 Generate code
+POST   /{prefix}/one-time-codes/send-email      Send code via email
+
+--- ROLE-BASED PERMISSIONS ---
+GET    /{prefix}/permissions                    Get permissions
+GET    /{prefix}/user-permissions               Get available permissions list
+GET    /admin/users/:id/permissions             Get user permissions (super admin)
+PUT    /admin/users/:id/permissions             Update user permissions (super admin)
+
+--- DASHBOARD ---
+GET    /user/dashboard/stats                    Personal dashboard stats
+GET    /admin/dashboard/stats                   Org admin dashboard stats
+GET    /org-user/dashboard/stats                Org user dashboard stats
+GET    /super-admin/dashboard-stats             Super admin dashboard stats
+
+--- ADMIN NOTIFICATIONS ---
+GET    /admin/notifications                     List notifications (page, limit, unreadOnly)
+GET    /admin/notifications/unread-count        Get unread count
+PUT    /admin/notifications/:id/read            Mark notification read
+PUT    /admin/notifications/read-all            Mark all notifications read
+
+--- GALLERY MANAGEMENT (Org Admin) ---
+GET    /admin/gallery                           List org gallery (category, minPrice, maxPrice, page, limit, sortBy, sortOrder)
+GET    /admin/gallery/:id                       Get gallery item
+POST   /admin/gallery                           Create item (multipart/form-data)
+PUT    /admin/gallery/:id                       Update item (JSON)
+DELETE /admin/gallery/:id                       Delete item
+POST   /admin/gallery/:id/upload-image          Upload image (multipart)
+GET    /admin/gallery/categories                Gallery categories
+GET    /admin/gallery/industries                Gallery industries
+GET    /admin/gallery/items                     All platform gallery items (itemType, categoryId, search, page, limit)
+GET    /admin/gallery/items/:id                 Platform gallery item details
+
+--- ADMIN BOOKING FLOW ---
+GET    /admin/booking/available-days            Available days (month, year, serviceId)
+GET    /admin/booking/available-slots           Available slots (date, serviceId)
+GET    /admin/booking/organization-users        Org users for booking (search, page, limit)
+GET    /admin/booking/location-options          Location options (serviceId)
+POST   /admin/booking/validate-location         Validate location selection
+POST   /admin/booking/calculate-pricing         Calculate pricing with sub-services
+POST   /admin/booking/create                    Create booking
+GET    /admin/booking/services/:id/sub-services Get sub-services
+GET    /admin/bookings                          List bookings (page, limit, status, date)
+GET    /admin/bookings/:id                      Get booking
+PUT    /admin/bookings/:id/status               Update booking status
+POST   /admin/bookings/:id/assign-provider      Assign service provider
+
+--- ADMIN PURCHASE FLOW ---
+GET    /admin/purchase/organization-users       Org users (search, page, limit)
+GET    /admin/purchase/pickup-centers           Pickup centers
+POST   /admin/purchase/create                   Create purchase
+GET    /admin/purchases                         List purchases (page, limit, status, date)
+GET    /admin/purchases/:id                     Get purchase
+PUT    /admin/purchases/:id/status              Update purchase status
+
+--- ADMIN ORDERS ---
+GET    /orders/admin/all                        List org orders (page, limit, status, search)
+GET    /orders/admin/:id                        Get order
+PUT    /{prefix}/orders/:id/status              Update order status (body: {status, notes})
+POST   /orders/admin/:id/send-reminder          Send order reminder
+
+--- ORGANIZATION ORDERS (Role-based) ---
+GET    /{prefix}/orders                         List organization orders
+PUT    /orders/admin/:id/booking-status         Update booking status
+GET    /orders/admin/service-bookings           Service bookings (date filter)
+
+--- PUBLIC ORDERS ---
+POST   /orders/public/initiate                  Initiate order/booking
+POST   /orders/public/verify                    Verify payment
+GET    /orders/public/available-days            Available days
+GET    /orders/public/available-slots           Available slots
+GET    /orders/public/location-options          Location options
+POST   /orders/public/validate-location         Validate location
+POST   /orders/public/calculate-pricing         Calculate pricing
+GET    /orders/public/services/:id/sub-services Sub-services
+
+--- USER ORDERS ---
+GET    /orders/user/my-orders                   My orders
+GET    /orders/user/:id                         Order details
+GET    /orders/user/pickup-centers              Pickup centers
+GET    /orders/user/:id/delivery-template       Delivery template
+POST   /orders/user/:id/confirm-delivery        Confirm delivery (multipart)
+POST   /orders/user/:id/confirm-remittance      Confirm remittance (body: {comment})
+
+--- SUPER ADMIN ORDERS ---
+GET    /orders/super-admin/all                  All platform orders (page, limit)
+GET    /orders/super-admin/:id                  Order details
+GET    /orders/super-admin/confirmed-deliveries/all  Confirmed deliveries
+POST   /orders/super-admin/:id/process-remittance    Process remittance
+GET    /orders/super-admin/service-bookings     Service bookings
+
+--- SERVICE PROVIDER ASSIGNMENT ---
+GET    /service-provider-assignment/summary     Module summary
+POST   /service-provider-assignment/module      Create module
+GET    /service-provider-assignment/module      Get module
+GET    /service-provider-assignment/users       All org users with SP status
+GET    /service-provider-assignment/detailed    Assigned SPs with details
+GET    /service-provider-assignment/users/available  Available for assignment
+POST   /service-provider-assignment/assign      Bulk assign SPs
+GET    /service-provider-assignment/history     Assignment history (page, limit)
+GET    /service-provider-assignment/service-provider/:userId  SP details
+PUT    /service-provider-assignment/service-provider/:userId  Update SP
+
+--- SERVICE PROVIDER TASKS ---
+GET    /service-provider-tasks/my-bookings      My bookings (SP view)
+GET    /service-provider-tasks/tasks/assigned   Assigned tasks
+GET    /service-provider-tasks/tasks/accepted   Accepted tasks
+GET    /service-provider-tasks/tasks/rejected   Rejected tasks
+GET    /service-provider-tasks/tasks/completed  Completed tasks
+GET    /service-provider-tasks/tasks/statistics  Task statistics
+POST   /service-provider-tasks/tasks/:id/accept Accept task
+POST   /service-provider-tasks/tasks/:id/reject  Reject task (body: {reason})
+POST   /service-provider-tasks/tasks/:id/complete  Complete task (multipart)
+GET    /service-provider-tasks/tasks/:id/completion-template  Get template
+GET    /service-provider-tasks/admin/report/completed  Admin completed tasks report
+GET    /service-provider-tasks/admin/tasks/:id/completion-details  Task completion details
+
+--- SERVICE PROVIDER SETTLEMENTS ---
+GET    /service-provider-settlements/admin/all  All settlements (status, serviceProviderId)
+GET    /service-provider-settlements/admin/:id  Settlement details
+POST   /service-provider-settlements/admin/process  Process settlement
+GET    /service-provider-settlements/provider/my-bank-details  Provider bank details
+PUT    /service-provider-settlements/provider/bank-details  Update bank details
+GET    /service-provider-settlements/provider/my-settlements  My settlements (status)
+GET    /service-provider-settlements/provider/:id  Settlement details
+POST   /service-provider-settlements/provider/:id/confirm  Confirm settlement
+
+--- BANK DETAILS (Organization) ---
+GET    /admin/bank-details                      Get bank details
+POST   /admin/bank-details                      Register/update bank details
+
+--- SUBSCRIPTION SYSTEM ---
+GET    /user-subscriptions/user/:id/active      Active subscription
+GET    /user-subscriptions/user/:id/status      Subscription status
+GET    /user-subscriptions/check-module-access/:moduleKey  Check module access
+GET    /user-subscriptions/check-usage-limit/:limitType    Check usage limit
+POST   /user-subscriptions/validate-promo       Validate promo code (body: {packageId, promoCode})
+
+--- PAYMENT SYSTEM ---
+POST   /payment/initialize                      Initialize subscription payment
+POST   /payment/verify                          Verify subscription payment (body: {tx_ref})
+POST   /payment/combined/initialize             Combined payment (sub + verified badge)
+POST   /payment/combined/verify                 Verify combined payment
+GET    /payment/verified-badge/check-payment-required  Check if payment required
+GET    /payment/verified-badge/pricing          Verified badge pricing
+POST   /payment/verified-badge/initialize       Initialize verified badge payment
+POST   /payment/verified-badge/verify           Verify verified badge payment
+GET    /payment/location/pricing                Location pricing (country,state,lga,city,cityRegion)
+
+--- ORGANIZATION PROFILE ---
+GET    /admin/organization-profile              Get org profile
+POST   /admin/organization-profile              Create/update profile settings
+PUT    /admin/organization-profile/settings     Update settings
+POST   /admin/organization-profile/locations    Add location
+PUT    /admin/organization-profile/locations/:index  Update location
+DELETE /admin/organization-profile/locations/:index  Delete location
+GET    /admin/organization-profile/verification/check  Check eligibility
+POST   /admin/organization-profile/verification/submit  Submit for verification
+
+--- SUPER ADMIN LOCATION VERIFICATION ---
+GET    /super-admin/location-verifications/pending    Pending verifications
+GET    /super-admin/location-verifications/rejected   Rejected verifications
+GET    /super-admin/location-verifications/verified   Verified verifications
+PUT    /super-admin/location-verifications/:profileId/:locationIndex/approve  Approve
+PUT    /super-admin/location-verifications/:profileId/:locationIndex/reject   Reject (body:{reason})
+POST   /super-admin/location-verifications/:profileId/:locationIndex/send-rejection-email
+
+--- SUPER ADMIN MANAGEMENT ---
+GET    /super-admin/profile                     Super admin profile
+GET    /super-admin/users                       All users (page, limit, search)
+GET    /super-admin/users/:id                   User details
+PUT    /super-admin/users/:id                   Update user
+PUT    /super-admin/users/:id/status            Update status
+PUT    /super-admin/users/:id/reset-password    Reset password
+DELETE /super-admin/users/:id                   Delete user
+GET    /super-admin/users/export/:format        Export users
+GET    /super-admin/admins                      All org admins (page, limit, search)
+GET    /super-admin/organizations               All organizations (page, limit, search)
+POST   /super-admin/organizations               Create organization
+PUT    /super-admin/organizations/:id/status    Update org status
+GET    /super-admin/organizations/:id/users     Org users (page, limit)
+GET    /super-admin/paid-subscriptions          Paid subscriptions (page, limit, search, dates, sort)
+GET    /super-admin/subscriptions               All subscription packages (page, limit, status)
+GET    /super-admin/subscriptions/:id           Package details
+GET    /super-admin/subscriptions/:id/subscribers  Package subscribers
+GET    /super-admin/subscriptions/export/:format   Export subscriptions
+GET    /super-admin/customers                   All customers (page, limit, status)
+POST   /super-admin/customers                   Create customer
+
+--- SUPER ADMIN INDUSTRIES/CATEGORIES ---
+GET    /super-admin/industries                  All industries
+POST   /super-admin/industries                  Create industry
+PUT    /super-admin/industries/:id              Update industry
+DELETE /super-admin/industries/:id              Delete industry
+GET    /super-admin/categories                  All categories (industryId filter)
+POST   /super-admin/categories                  Create category
+PUT    /super-admin/categories/:id              Update category
+DELETE /super-admin/categories/:id              Delete category
+
+--- SUPER ADMIN PICKUP CENTERS ---
+GET    /super-admin/pickup-centers              All centers (isActive filter)
+POST   /super-admin/pickup-centers              Create center
+PUT    /super-admin/pickup-centers/:id          Update center
+DELETE /super-admin/pickup-centers/:id          Delete center
+
+--- SUPER ADMIN PLATFORM COMMISSIONS ---
+GET    /super-admin/platform-commissions        All commissions (industryId, categoryId)
+POST   /super-admin/platform-commissions        Create commission
+GET    /super-admin/platform-commissions/:id    Get commission
+PUT    /super-admin/platform-commissions/:id    Update commission
+DELETE /super-admin/platform-commissions/:id    Delete commission
+GET    /super-admin/platform-commissions/category/:id  By category
+
+--- SUPER ADMIN DEFAULT PRICING ---
+GET    /super-admin/default-pricing             All pricing (page, limit, country, state)
+POST   /super-admin/default-pricing             Create pricing
+PUT    /super-admin/default-pricing/:id         Update pricing
+DELETE /super-admin/default-pricing/:id         Delete pricing
+GET    /super-admin/pricing/location            Test location pricing
+
+--- SUPER ADMIN DATA VERIFICATION ---
+GET    /super-admin/data-verification/verifications  All verifications (status)
+POST   /super-admin/data-verification/verifications/:id/review  Review (body: {status, comments})
+GET    /super-admin/data-verification/verification-stats  Stats
+GET    /super-admin/data-verification/organizations  Organizations
+GET    /super-admin/data-verification/users     All users
+POST   /super-admin/data-verification/assign-role/:userId  Assign role
+POST   /super-admin/data-verification/create-role  Create role
+POST   /super-admin/data-verification/assign-organization  Assign org to user
+GET    /super-admin/data-verification/assignments  All assignments
+GET    /super-admin/data-verification/assignments/user/:id  User assignments
+GET    /super-admin/data-verification/assignments/:id  Assignment details
+DELETE /super-admin/data-verification/assignments/:id  Delete assignment
+GET    /super-admin/data-verification/verifications/:id  Verification details
+
+--- LOCATIONS (External - uses country-state-city npm package, NOT API calls) ---
+  getExternalCountries() --> Country.getAllCountries()
+  getExternalStates(countryName) --> State.getStatesOfCountry(isoCode)
+  getExternalLGAs(countryName, stateName) --> pre-built Nigerian LGA data or City.getCitiesOfState()
+  getExternalCities(countryName, stateName, lga) --> City.getCitiesOfState() (limited to 15)
+
+--- SERVICES (Super Admin) ---
+GET    /services                                All services
+POST   /services                                Create service
+GET    /services/:id                            Get service
+PUT    /services/:id                            Update service
+DELETE /services/:id                            Delete service
+GET    /services/available-modules              Available modules
+
+--- SUBSCRIPTION PACKAGES ---
+GET    /subscription-packages                   All packages
+POST   /subscription-packages                   Create package
+GET    /subscription-packages/:id               Get package
+PUT    /subscription-packages/:id               Update package
+DELETE /subscription-packages/:id               Delete package
+GET    /subscription-packages/available-services  Available services for packages
+GET    /subscription-packages/available         Available packages for organization
+
+--- PUBLIC PRODUCTS ---
+GET    /public/products/search                  Search products (search, itemType, categoryId, price, city, state, page, limit, sort)
+GET    /public/products/:id                     Product details
+
+--- SHOPPING CART ---
+GET    /cart                                    Get cart
+POST   /cart/add                                Add item (body: {galleryItemId, quantity})
+PATCH  /cart/update/:galleryItemId              Update quantity (body: {quantity})
+DELETE /cart/remove/:galleryItemId              Remove item
+DELETE /cart/clear                              Clear cart
+PATCH  /cart/update-service/:galleryItemId      Update service booking
+PATCH  /cart/payment-type/:galleryItemId        Set payment type
+PATCH  /cart/toggle-check/:galleryItemId        Toggle item checkbox
+
+--- CHECKOUT ---
+POST   /checkout/validate                       Validate cart
+POST   /checkout/process                        Process checkout
+POST   /checkout/verify                         Verify cart payment (body: {tx_ref})
+POST   /checkout/pay-remaining                  Pay remaining balance
+
+--- DATA VERIFICATION (Field Agent) ---
+GET    /data-verification/assignments/my        My assignments
+GET    /data-verification/assignments/pending   Pending assignments
+GET    /data-verification/assignments/:id       Assignment details
+GET    /data-verification/my-assigned-locations Assigned locations
+GET    /data-verification/my-verifications      My verifications
+POST   /data-verification                       Create verification
+POST   /data-verification/with-images           Create verification with images (multipart)
+POST   /data-verification/:id/submit            Submit verification
+
+--- PUBLIC ORGANIZATION PROFILES ---
+GET    /organization-profiles/public/all        All public org profiles
+
+--- LOCATION DATA ---
+GET    /locations/cities                        Cities (country, state, lga)
+GET    /locations/city-regions                  City regions (country, state, lga, city)
+GET    /admin/location-options/hierarchy        Location hierarchy
+GET    /admin/location-options/cities           Cities
+GET    /admin/location-options/city-regions     City regions with pricing
+GET    /super-admin/locations                   All super admin locations (city regions)
+POST   /super-admin/locations                   Create location (body: {country, state, lga, city, cityRegions: [{name, fee}]})
+PUT    /super-admin/locations/:id               Update location
+DELETE /super-admin/locations/:id               Delete location
+
+--- SUPER ADMIN ANALYTICS ---
+GET    /super-admin/analytics                   Platform analytics
+
+--- APK DOWNLOAD REPORTS ---
+GET    /apk-download/stats                      APK download stats
+GET    /apk-download/list                       APK download list (page, limit, platform, role, startDate, endDate)
+
+================================================================================
+SECTION 19: KEY PATTERNS & GOTCHAS
+================================================================================
+
+1. ROLE-BASED API PREFIX
+   Every API call in the service file resolves the prefix dynamically:
+   - ORGANIZATION --> /admin
+   - CUSTOMER + organizationId --> /org-user
+   - regular CUSTOMER --> /user
+   DO NOT hardcode /admin/ for all calls. Check user.role + user.organizationId each time.
+
+2. CURRENCY: ALWAYS USE actualAmount
+   - item.actualAmount is the final price in NGN (Nigerian Naira)
+   - item.priceInDollars is the base price before platform charges
+   - Display format: ₦{actualAmount.toLocaleString()}
+   - NEVER display priceInDollars to end users
+
+3. IMAGE FALLBACK CHAIN
+   const imageUrl = item.imageUrl || item.image || item.picture || item.photo
+   Always use this fallback. Different item types use different field names.
+
+4. GALLERY ITEMS: id vs _id
+   - GalleryManagementScreen uses item._id for API calls (POST /admin/gallery/:id)
+   - AdminGalleryItemsScreen uses item.id (not ._id) for navigation
+   - Be aware: both may exist; prefer the one the API returns for that endpoint
+
+5. PAGINATION PATTERN
+   Response: { items: [...], pagination: { totalPages, total, hasNextPage, hasPrevPage } }
+   Or: { items: [...], totalPages, total, totalOrders }
+   Or simple hasMore: returned.length === limit (20 or 10)
+   Always check response structure before rendering pagination.
+
+6. SUBSCRIPTION MODULE ACCESS CHECK
+   Before creating users or measurements:
+   GET /user-subscriptions/check-usage-limit/orgUsers  (for users)
+   GET /user-subscriptions/check-usage-limit/bodyMeasurements  (for measurements)
+   If limit reached: show upgrade modal, do NOT proceed with creation.
+   ModuleAccessChecker.checkUsageLimit(type) wraps this call.
+
+7. PASSWORD STORAGE PATTERN
+   When an org user is created:
+   - Backend returns generatedPassword in response
+   - Store in localStorage key "userPasswords" as JSON: { [userId]: password }
+   - Also key by customUserId: { [customUserId]: password }
+   - When viewing UserDetails, read from this storage to show to admin
+   - This is NOT stored on the server; it's purely a client-side convenience feature
+
+8. LOGIN FLOW: ORGANIZATION SUBSCRIPTION CHECK
+   After storing token for ORGANIZATION role:
+   1. GET /user-subscriptions/user/:userId/status
+   2. If response.data.hasActiveSubscription === true: go to AdminDashboard
+   3. Else: go to SubscriptionSelection page
+   Don't skip this check or the org may land on dashboard without a valid subscription.
+
+9. OTP VERIFICATION (VerifyOTPScreen)
+   - IMPORTANT: On success, navigate to LOGIN (not dashboard)
+   - Do NOT store token from verify-otp response
+   - Do NOT navigate to dashboard from this screen
+   - The user must log in again after verifying their email
+
+10. SEND EMAIL: generateNewPassword ALWAYS TRUE
+    AdminBookingSuccessScreen and UserDetailsScreen send emails with:
+    { adminMessage: "...", generateNewPassword: true }
+    The generateNewPassword field is ALWAYS hardcoded to true when sending.
+
+11. SUPER ADMIN PROFILE MERGE
+    GET /auth/profile for SUPER_ADMIN role:
+    - The service auto-calls GET /super-admin/profile additionally
+    - Merges displayName, fullName, firstName, lastName from super admin profile
+    - This ensures the correct name is shown for super admins
+
+12. ADMIN DASHBOARD NOTIFICATION BADGE
+    GET /admin/notifications/unread-count
+    Returns: { unreadCount: number }
+    Show as badge on notification bell icon. Refresh on screen focus.
+
+13. BOOKING STEP 5: SUB-SERVICES NESTED RESPONSE
+    GET /admin/booking/services/:id/sub-services
+    Response structure: response.data.subServices?.subServices || response.data.subServices
+    (Note the double nesting - always check both paths)
+
+14. LOCATION OPTIONS RESPONSE
+    GET /admin/booking/location-options
+    Returns: { locationOptions: { merchant_location: {...}, customer_address: {...} }, defaultOption, organizationName }
+    Set initial selectedLocationType = response.data.defaultOption || 'merchant_location'
+
+15. ORGANIZATION PROFILE: LOCATION CHECK ON DASHBOARD
+    When clicking "Organization Profile" quick action:
+    - First call GET /admin/organization-profile
+    - Check: response.data?.profile?.locations?.length > 0
+    - If yes: go to OrganizationLocations
+    - If no/empty: go to OrganizationProfileSetup
+
+16. BOTTOM NAVIGATION: ORGANIZATION ONLY
+    The BottomNavigation component on AdminDashboard is shown ONLY for role === 'ORGANIZATION'
+    CUSTOMER users with organizationId do NOT see the bottom nav.
+
+17. USER STATUS TRANSITIONS
+    Valid transitions:
+    active --> archived (via Archive action)
+    active --> pending (via Set Pending action)
+    pending --> active (via Activate action)
+    pending --> archived (via Archive action)
+    archived --> active (via Activate action)
+    No transition: active <--> archived directly bypasses pending in some flows; check UI.
+
+18. CREATE GROUP: MEMBER MANAGEMENT
+    Initial create: send memberIds in POST body
+    Edit members after creation: use PUT /groups/:id/members with { action: 'add'|'remove', userIds: [...] }
+
+19. MEASUREMENT UNIT PROPAGATION
+    In AdminCreateMeasurementScreen:
+    - All sections share ONE measurement unit
+    - Unit is set on section 1 and propagates to all sections
+    - Trying to change unit on section 2+ is blocked with an alert
+    - Only the first section's unit dropdown is functional
+
+20. PAYMENT FLOW: PAYMENTTYPE IN LOCALSTORAGE
+    When initializing different payment types, the app stores "paymentType" in AsyncStorage:
+    - subscription payment: stores "subscription"
+    - combined payment (sub + badge): stores "combined"
+    - verified badge only: stores "verified-badge"
+    On verify: reads paymentType, routes to correct verify endpoint.
+    Clears paymentType after successful verification.
+
+21. MULTIPART/FORM-DATA UPLOADS
+    For gallery creation, verification submission, task completion:
+    - Do NOT set Content-Type header manually
+    - Let browser/fetch set it automatically with the correct boundary
+    - Otherwise multipart parsing will fail on the server
+
+22. SUPER ADMIN: MANDATORY ROLE CHECK ON EVERY SCREEN
+    Every super admin screen calls GET /auth/profile on mount
+    Checks: response.data.user.role !== 'SUPER_ADMIN'
+    If check fails: show Alert, navigation.goBack()
+    Replicate this guard on every super admin route in Next.js middleware or layout.
+
+23. DATE FORMAT CONVENTIONS
+    Standard display: new Date(dateString).toLocaleDateString('en-US', { year:'numeric', month:'long', day:'numeric' })
+    With time: add hour:'2-digit', minute:'2-digit'
+    Short format: month:'short', day:'numeric', year:'numeric'
+    All dates from API are ISO strings.
+
+24. TIME AGO FORMULA
+    diff = (Date.now() - new Date(iso)) / 1000
+    < 60: "{floor(diff)}s ago"
+    < 3600: "{floor(diff/60)}m ago"
+    < 86400: "{floor(diff/3600)}h ago"
+    >= 86400: "{floor(diff/86400)}d ago"
+
+25. ADMIN BOOKING SOURCE DETECTION
+    booking.bookedByAdmin === true --> show "Admin Booked" badge (purple)
+    booking.bookingSource field (if available)
+    Fallback: presence of userId field
+
+26. SETTLEMENT AMOUNT CALCULATION
+    Total amount on AdminSettlementsManagementScreen is calculated CLIENT-SIDE:
+    settlements.reduce((sum, s) => sum + (s.amount || 0), 0)
+    NOT returned by the API as a pre-computed total.
+
+27. MEASUREMENTS HASMORE PATTERN (simple pagination)
+    In UserDetailsScreen for user measurements:
+    hasMore = (returned measurements count === 20)
+    Page increments by 1 on "Load More"
+    Not based on pagination object, just count === limit
+
+28. VERIFIED BADGE PAYMENT FLOW
+    Three separate payment flows are stored differently:
+    a. Subscription only: POST /payment/initialize --> POST /payment/verify
+    b. Verified badge only: POST /payment/verified-badge/initialize --> POST /payment/verified-badge/verify
+    c. Combined (sub + badge): POST /payment/combined/initialize --> POST /payment/combined/verify
+    Check stored "paymentType" value to route verification correctly.
+
+29. ADMIN GALLERY vs ORGANIZATION GALLERY
+    /admin/gallery --> organization's OWN items (they created/uploaded)
+    /admin/gallery/items --> ALL platform items from all organizations
+    These are different endpoints with different data scopes.
+
+30. SUPER ADMIN ANALYTICS FALLBACKS
+    Analytics screen uses || '0%' and || '0' fallbacks for all values:
+    analytics.userGrowth || '0%'
+    analytics.activeSessions || '0'
+    Always provide fallback since analytics endpoint may return partial data.
+
+================================================================================
+END OF GUIDE
+================================================================================

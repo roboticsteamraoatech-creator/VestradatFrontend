@@ -266,7 +266,7 @@ const BookingCreateFlow: React.FC<BookingCreateFlowProps> = ({ token, onCancel, 
         return;
       }
 
-      if (customerType === 'existing' && !selectedCustomer?.customUserId) {
+      if (customerType === 'existing' && !selectedCustomer?._id && !selectedCustomer?.id && !selectedCustomer?.customUserId) {
         setStepError('Selected customer is missing ID. Please select the customer again.');
         return;
       }
@@ -282,7 +282,7 @@ const BookingCreateFlow: React.FC<BookingCreateFlowProps> = ({ token, onCancel, 
         serviceName: selectedServiceName,
         servicePrice: selectedServicePrice,
         customerType,
-        customerId: customerType === 'existing' ? selectedCustomer?.customUserId : undefined,
+        customerId: customerType === 'existing' ? (selectedCustomer?._id || selectedCustomer?.id || selectedCustomer?.customUserId) : undefined,
         customerName: customerType === 'external' ? externalCustomerName : selectedCustomer?.name,
         customerEmail: customerType === 'external' ? externalCustomerEmail : selectedCustomer?.email,
         customerPhone: customerType === 'external' ? externalCustomerPhone : selectedCustomer?.phoneNumber,
@@ -389,6 +389,53 @@ const BookingCreateFlow: React.FC<BookingCreateFlowProps> = ({ token, onCancel, 
             <span>Review</span>
           </div>
         </div>
+
+        {/* Running Summary (shown on steps 2-5) */}
+        {currentStep !== 'service-date' && (selectedServiceName || selectedDate) && (
+          <div className="bg-blue-50 border border-blue-200 rounded-lg p-4 mb-4 text-sm">
+            <h3 className="font-medium text-blue-800 mb-2">Booking Summary So Far</h3>
+            <div className="grid grid-cols-2 md:grid-cols-4 gap-3">
+              {selectedServiceName && (
+                <div>
+                  <span className="text-blue-600 block text-xs">Service</span>
+                  <span className="font-medium text-gray-800">{selectedServiceName}</span>
+                  {selectedServicePrice > 0 && (
+                    <span className="text-xs text-gray-600 block">{formatCurrency(selectedServicePrice)}</span>
+                  )}
+                </div>
+              )}
+              {selectedSlot && (
+                <div>
+                  <span className="text-blue-600 block text-xs">Date &amp; Time</span>
+                  <span className="font-medium text-gray-800">{formatDate(selectedSlot)}</span>
+                </div>
+              )}
+              {(currentStep === 'details' || currentStep === 'location' || currentStep === 'review') && (
+                <div>
+                  <span className="text-blue-600 block text-xs">Customer</span>
+                  <span className="font-medium text-gray-800">
+                    {customerType === 'existing'
+                      ? (selectedCustomer?.name || 'Not selected')
+                      : (externalCustomerName || 'Not entered')}
+                  </span>
+                </div>
+              )}
+              {(currentStep === 'details' || currentStep === 'location' || currentStep === 'review') && (
+                <div>
+                  <span className="text-blue-600 block text-xs">Total Persons</span>
+                  <span className="font-medium text-gray-800">{1 + guests.length}</span>
+                </div>
+              )}
+              {(currentStep === 'location' || currentStep === 'review') && selectedLocationType && (
+                <div>
+                  <span className="text-blue-600 block text-xs">Delivery / Location</span>
+                  <span className="font-medium text-gray-800">{getLocationLabel(selectedLocationType)}</span>
+                  {locationAddress && <span className="text-xs text-gray-600 block">{locationAddress}</span>}
+                </div>
+              )}
+            </div>
+          </div>
+        )}
 
         {/* Step Error */}
         {stepError && (
@@ -789,12 +836,18 @@ const BookingCreateFlow: React.FC<BookingCreateFlowProps> = ({ token, onCancel, 
                 )}
               </div>
 
-              <button onClick={handleCreateBooking} disabled={creatingBooking}
-                className="w-full py-3 bg-purple-600 text-white rounded-lg hover:bg-purple-700 disabled:opacity-50 disabled:cursor-not-allowed flex items-center justify-center gap-2">
-                {creatingBooking ? (
-                  <><Loader2 className="w-5 h-5 animate-spin" />Creating...</>
-                ) : 'Create Booking'}
-              </button>
+              <div className="flex gap-3">
+                <button type="button" onClick={prevStep} disabled={creatingBooking}
+                  className="flex-1 py-3 border border-gray-300 text-gray-700 rounded-lg hover:bg-gray-50 disabled:opacity-50 disabled:cursor-not-allowed">
+                  Back
+                </button>
+                <button onClick={handleCreateBooking} disabled={creatingBooking}
+                  className="flex-1 py-3 bg-purple-600 text-white rounded-lg hover:bg-purple-700 disabled:opacity-50 disabled:cursor-not-allowed flex items-center justify-center gap-2">
+                  {creatingBooking ? (
+                    <><Loader2 className="w-5 h-5 animate-spin" />Creating...</>
+                  ) : 'Create Booking'}
+                </button>
+              </div>
             </div>
           )}
 

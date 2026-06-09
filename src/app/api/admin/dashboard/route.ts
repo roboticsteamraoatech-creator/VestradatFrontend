@@ -1,4 +1,5 @@
-import { NextRequest, NextResponse } from 'next/server';
+﻿import { NextRequest, NextResponse } from 'next/server';
+import { BASE_URL } from '@/config/api';
 
 // GET /api/admin/dashboard/stats - Retrieve comprehensive statistics for the admin dashboard
 export async function GET(request: NextRequest) {
@@ -6,7 +7,7 @@ export async function GET(request: NextRequest) {
     console.log('🔄 Proxying dashboard stats request to backend');
 
     // Get the backend URL from environment variables
-    const backendUrl = process.env.NEXT_PUBLIC_BACKEND_API || process.env.API_URL || process.env.NEXT_PUBLIC_API_URL || 'https://datacapture-backend.onrender.com';
+    const backendUrl = BASE_URL;
     
     // Get the authorization token from the incoming request
     const authHeader = request.headers.get('authorization');

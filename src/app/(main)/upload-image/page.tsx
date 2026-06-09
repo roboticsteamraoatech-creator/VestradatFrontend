@@ -1,4 +1,4 @@
-"use client";
+﻿"use client";
 
 import { useState, useRef, useEffect } from 'react';
 import { useAuthContext } from '@/AuthContext';
@@ -7,6 +7,7 @@ import Head from 'next/head';
 import Navbar from '@/app/components/navbar';
 import { RefreshCw, Upload, Camera, Trash2 } from 'lucide-react';
 import UploadImageSignUpModal from '@/components/modals/UploadImageSignUpModal';
+import { BASE_URL } from '@/config/api';
 
 const UploadPageContent = ({ searchParams }: { searchParams: { type?: string } }) => {
   const { token } = useAuthContext();
@@ -177,7 +178,7 @@ const UploadPageContent = ({ searchParams }: { searchParams: { type?: string } }
       const mimeType = getMimeTypeFromDataUrl(imageData);
       
       // Upload directly to backend API
-      const backendUrl = process.env.NEXT_PUBLIC_BACKEND_API || 'https://datacapture-backend.onrender.com';
+      const backendUrl = BASE_URL;
       console.log('Uploading to backend with token:', token);
       const response = await fetch(`${backendUrl}/api/photos/upload`, {
         method: 'POST',

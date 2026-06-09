@@ -1,4 +1,5 @@
-import { NextRequest } from 'next/server';
+﻿import { NextRequest } from 'next/server';
+import { BASE_URL } from '@/config/api';
 
 export async function GET(request: NextRequest, { params }: { params: Promise<{ format: string }> }) {
   try {
@@ -25,7 +26,7 @@ export async function GET(request: NextRequest, { params }: { params: Promise<{ 
     }
     
     // Call the actual backend API
-    const backendUrl = `https://datacapture-backend.onrender.com/api/subscription-packages/export/${format}`;
+    const backendUrl = `${BASE_URL}/api/subscription-packages/export/${format}`;
     
     const response = await fetch(backendUrl, {
       method: 'GET',

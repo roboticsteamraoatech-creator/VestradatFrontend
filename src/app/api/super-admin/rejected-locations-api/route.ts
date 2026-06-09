@@ -1,9 +1,10 @@
-import { NextRequest } from 'next/server';
+﻿import { NextRequest } from 'next/server';
+import { BASE_URL } from '@/config/api';
 
 export async function GET(request: NextRequest) {
   try {
     // Call the actual backend API
-    const backendUrl = `https://datacapture-backend.onrender.com/api/super-admin/location-verifications/rejected`;
+    const backendUrl = `${BASE_URL}/api/super-admin/location-verifications/rejected`;
     
     const response = await fetch(backendUrl, {
       method: 'GET',

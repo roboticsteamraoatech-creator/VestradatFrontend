@@ -1,5 +1,6 @@
-import { HttpService } from './HttpService';
+﻿import { HttpService } from './HttpService';
 import { routes } from './apiRoutes';
+import { BASE_URL } from '@/config/api';
 
 interface InitializePaymentRequest {
   userId: string;
@@ -54,7 +55,7 @@ class PaymentService {
   private httpService: HttpService;
 
   constructor() {
-    this.httpService = new HttpService(process.env.NEXT_PUBLIC_BACKEND_API || 'https://datacapture-backend.onrender.com');
+    this.httpService = new HttpService(BASE_URL);
   }
 
   async initializePayment(request: InitializePaymentRequest): Promise<InitializePaymentResponse> {

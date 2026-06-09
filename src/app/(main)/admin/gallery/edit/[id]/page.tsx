@@ -4,6 +4,7 @@
 import { useState, useEffect } from "react";
 import { useRouter, useParams } from "next/navigation";
 import { GalleryService } from "@/services/gallery-sub-service";
+import { HttpService } from "@/services/HttpService";
 import { ArrowLeft, Save } from 'lucide-react';
 
 interface Category {
@@ -23,6 +24,8 @@ interface ApiSubService {
   price: number;
   subPlatformUniqueCode?: string;
   uploadPicture?: string;
+  file?: File;
+  previewUrl?: string;
 }
 
 
@@ -65,6 +68,7 @@ interface GalleryItem {
   categoryId: string;
   industryId: string;
   locationIndex: number;
+  itemType?: 'product' | 'service';
   sku?: string;
   upc?: string;
   producer?: string;
@@ -112,6 +116,7 @@ export default function EditServicePage() {
     categoryId: '',
     industryId: '',
     locationIndex: 0,
+    itemType: '' as 'product' | 'service' | '',
     sku: '',
     upc: '',
     producer: '',
@@ -132,7 +137,7 @@ export default function EditServicePage() {
 
   const getToken = (): string | null => {
     if (typeof window !== 'undefined') {
-      return localStorage.getItem('token') || sessionStorage.getItem('token');
+      return localStorage.getItem('userToken') || sessionStorage.getItem('userToken');
     }
     return null;
   };
@@ -186,11 +191,12 @@ export default function EditServicePage() {
             categoryId: item.categoryId || '',
             industryId: item.industryId || '',
             locationIndex: item.locationIndex || 0,
+            itemType: item.itemType as 'product' | 'service' || '',
             sku: item.sku || '',
             upc: item.upc || '',
             producer: item.producer || '',
             totalProviders: item.totalAvailableServiceProviders?.toString() || '',
-            priceInDollars: item.priceInDollars?.toString() || '',
+            priceInDollars: (item.actualAmount || item.priceInDollars)?.toString() || '',
             discountPercentage: item.discountPercentage?.toString() || '',
             platformChargePercentage: item.platformChargePercentage?.toString() || '',
             upfrontPayment: (item.upfrontPaymentPercentage || 0) > 0,
@@ -257,7 +263,10 @@ export default function EditServicePage() {
       }
       
       // Always include pricing fields (they should have values)
-      updatePayload.priceInDollars = parseFloat(formData.priceInDollars) || 0;
+      // actualAmount is the Naira price — send as both actualAmount and priceInDollars for compatibility
+      const priceValue = parseFloat(formData.priceInDollars) || 0;
+      updatePayload.priceInDollars = priceValue;
+      (updatePayload as any).actualAmount = priceValue;
       updatePayload.discountPercentage = parseFloat(formData.discountPercentage) || 0;
       updatePayload.platformChargePercentage = parseFloat(formData.platformChargePercentage) || 0;
       updatePayload.upfrontPaymentPercentage = formData.upfrontPayment ? 30 : 0;
@@ -267,19 +276,31 @@ export default function EditServicePage() {
         updatePayload.notes = formData.notes;
       }
 
-      // Add subServices - map to the correct format without id and picture
+      // Upload any new sub-service images first, then map with the returned URLs
       if (formData.subServices && formData.subServices.length > 0) {
-        updatePayload.subServices = formData.subServices.map(sub => ({
+        const resolvedSubServices = await Promise.all(
+          formData.subServices.map(async (sub) => {
+            if (sub.file) {
+              const uploadResult = await GalleryService.uploadImage(token, id, sub.file);
+              const imageUrl = (uploadResult as any)?.data?.imageUrl || (uploadResult as any)?.imageUrl;
+              return { ...sub, uploadPicture: imageUrl || sub.uploadPicture, file: undefined, previewUrl: undefined };
+            }
+            return sub;
+          })
+        );
+        updatePayload.subServices = resolvedSubServices.map(sub => ({
           name: sub.name,
           description: sub.description,
           price: sub.price,
           ...(sub.subPlatformUniqueCode && { subPlatformUniqueCode: sub.subPlatformUniqueCode }),
-          ...(sub.uploadPicture && { uploadPicture: sub.uploadPicture })
+          ...(sub.uploadPicture && !sub.previewUrl && { uploadPicture: sub.uploadPicture })
         }));
       }
 
-      // Add availability if type is period
-      if (formData.availabilityType === 'period') {
+      // Always include availability for services; products don't need it
+      if (formData.itemType === 'product') {
+        delete (updatePayload as any).availability;
+      } else if (formData.availabilityType === 'period') {
         updatePayload.availability = {
           type: 'period',
           startDate: formData.startDate,
@@ -287,14 +308,29 @@ export default function EditServicePage() {
           endDate: formData.endDate,
           endTime: formData.endTime
         };
+      } else {
+        updatePayload.availability = { type: 'unlimited', startDate: '', startTime: '', endDate: '', endTime: '' };
       }
 
-      console.log('Updating with payload:', updatePayload);
-
-      // Call the update method
-      const result = await GalleryService.updateGalleryItem(token, id, updatePayload as any);
+      const result = await HttpService.put<{ success: boolean; data?: { galleryItem?: GalleryItem }; message?: string }>(
+        `/api/admin/gallery/${id}`,
+        updatePayload
+      );
 
       if (result.success) {
+        const updated = result.data?.galleryItem;
+        if (updated) {
+          setFormData(prev => ({
+            ...prev,
+            name: updated.name ?? prev.name,
+            description: updated.description ?? prev.description,
+            priceInDollars: (updated.actualAmount || updated.priceInDollars)?.toString() ?? prev.priceInDollars,
+            discountPercentage: updated.discountPercentage?.toString() ?? prev.discountPercentage,
+            platformChargePercentage: updated.platformChargePercentage?.toString() ?? prev.platformChargePercentage,
+            visibilityToPublic: updated.visibilityToPublic ?? prev.visibilityToPublic,
+            subServices: updated.subServices?.length ? updated.subServices : prev.subServices,
+          }));
+        }
         setSuccess(true);
         setTimeout(() => {
           router.push('/admin/gallery/services');
@@ -455,31 +491,35 @@ export default function EditServicePage() {
                   </select>
                 </div> */}
 
-                <div>
-                  <label className="block text-sm font-medium text-gray-700 mb-1">
-                    SKU
-                  </label>
-                  <input
-                    type="text"
-                    name="sku"
-                    value={formData.sku}
-                    onChange={handleChange}
-                    className="w-full px-3 py-2 border border-gray-300 rounded-md focus:ring-[#5d2a8b] focus:border-[#5d2a8b]"
-                  />
-                </div>
+                {formData.itemType === 'product' && (
+                  <div>
+                    <label className="block text-sm font-medium text-gray-700 mb-1">
+                      SKU
+                    </label>
+                    <input
+                      type="text"
+                      name="sku"
+                      value={formData.sku}
+                      onChange={handleChange}
+                      className="w-full px-3 py-2 border border-gray-300 rounded-md focus:ring-[#5d2a8b] focus:border-[#5d2a8b]"
+                    />
+                  </div>
+                )}
 
-                <div>
-                  <label className="block text-sm font-medium text-gray-700 mb-1">
-                    UPC
-                  </label>
-                  <input
-                    type="text"
-                    name="upc"
-                    value={formData.upc}
-                    onChange={handleChange}
-                    className="w-full px-3 py-2 border border-gray-300 rounded-md focus:ring-[#5d2a8b] focus:border-[#5d2a8b]"
-                  />
-                </div>
+                {formData.itemType === 'product' && (
+                  <div>
+                    <label className="block text-sm font-medium text-gray-700 mb-1">
+                      UPC
+                    </label>
+                    <input
+                      type="text"
+                      name="upc"
+                      value={formData.upc}
+                      onChange={handleChange}
+                      className="w-full px-3 py-2 border border-gray-300 rounded-md focus:ring-[#5d2a8b] focus:border-[#5d2a8b]"
+                    />
+                  </div>
+                )}
 
                 <div>
                   <label className="block text-sm font-medium text-gray-700 mb-1">
@@ -516,7 +556,7 @@ export default function EditServicePage() {
               <div className="grid grid-cols-1 md:grid-cols-3 gap-4">
                 <div>
                   <label className="block text-sm font-medium text-gray-700 mb-1">
-                    Price ($) <span className="text-red-500">*</span>
+                    Price (₦) <span className="text-red-500">*</span>
                   </label>
                   <input
                     type="number"
@@ -681,22 +721,122 @@ export default function EditServicePage() {
               />
             </div>
 
-            {/* Sub-services summary */}
-            {formData.subServices.length > 0 && (
+            {/* Sub-services */}
+            {formData.itemType === 'service' && (
               <div className="space-y-4">
-                <h2 className="text-lg font-semibold border-b pb-2">Sub-services ({formData.subServices.length})</h2>
-                <div className="grid grid-cols-1 md:grid-cols-2 gap-4">
-                  {formData.subServices.map((sub, index) => (
-                    <div key={index} className="p-4 bg-gray-50 rounded-lg border">
-                      <h3 className="font-medium">{sub.name}</h3>
-                      <p className="text-sm text-gray-600 mt-1">{sub.description}</p>
-                      <p className="text-sm font-medium text-[#5d2a8b] mt-2">${sub.price}</p>
-                      {sub.subPlatformUniqueCode && (
-                        <p className="text-xs text-gray-400 mt-1">Code: {sub.subPlatformUniqueCode}</p>
+                <div className="flex items-center justify-between border-b pb-2">
+                  <h2 className="text-lg font-semibold">Sub-services ({formData.subServices.length})</h2>
+                  <button
+                    type="button"
+                    onClick={() => setFormData(prev => ({
+                      ...prev,
+                      subServices: [...prev.subServices, { name: '', description: '', price: 0 }]
+                    }))}
+                    className="text-sm px-3 py-1 bg-[#5d2a8b] text-white rounded-md hover:bg-[#4a2170]"
+                  >
+                    + Add Sub-service
+                  </button>
+                </div>
+                {formData.subServices.length === 0 && (
+                  <p className="text-sm text-gray-500 italic">No sub-services yet.</p>
+                )}
+                {formData.subServices.map((sub, index) => (
+                  <div key={index} className="p-4 bg-gray-50 rounded-lg border space-y-3">
+                    <div className="flex justify-between items-center">
+                      <span className="text-sm font-medium text-gray-700">Sub-service {index + 1}</span>
+                      <button
+                        type="button"
+                        onClick={() => setFormData(prev => ({
+                          ...prev,
+                          subServices: prev.subServices.filter((_, i) => i !== index)
+                        }))}
+                        className="text-xs text-red-600 hover:text-red-800"
+                      >
+                        Remove
+                      </button>
+                    </div>
+                    <input
+                      type="text"
+                      value={sub.name}
+                      onChange={(e) => {
+                        const updated = [...formData.subServices];
+                        updated[index] = { ...updated[index], name: e.target.value };
+                        setFormData(prev => ({ ...prev, subServices: updated }));
+                      }}
+                      placeholder="Name"
+                      className="w-full px-3 py-2 border border-gray-300 rounded-md text-sm"
+                    />
+                    <textarea
+                      value={sub.description}
+                      onChange={(e) => {
+                        const updated = [...formData.subServices];
+                        updated[index] = { ...updated[index], description: e.target.value };
+                        setFormData(prev => ({ ...prev, subServices: updated }));
+                      }}
+                      placeholder="Description"
+                      rows={2}
+                      className="w-full px-3 py-2 border border-gray-300 rounded-md text-sm"
+                    />
+                    <input
+                      type="number"
+                      value={sub.price}
+                      onChange={(e) => {
+                        const updated = [...formData.subServices];
+                        updated[index] = { ...updated[index], price: parseFloat(e.target.value) || 0 };
+                        setFormData(prev => ({ ...prev, subServices: updated }));
+                      }}
+                      placeholder="Price (₦)"
+                      step="0.01"
+                      min="0"
+                      className="w-full px-3 py-2 border border-gray-300 rounded-md text-sm"
+                    />
+                    {/* Sub-service image upload */}
+                    <div>
+                      <label className="block text-xs font-medium text-gray-700 mb-1">Image (optional)</label>
+                      {(sub.previewUrl || sub.uploadPicture) ? (
+                        <div className="relative inline-block">
+                          <img
+                            src={sub.previewUrl || sub.uploadPicture}
+                            alt="Sub-service preview"
+                            className="w-32 h-32 object-cover rounded-lg border border-gray-200"
+                          />
+                          <button
+                            type="button"
+                            onClick={() => {
+                              if (sub.previewUrl) URL.revokeObjectURL(sub.previewUrl);
+                              const updated = [...formData.subServices];
+                              updated[index] = { ...updated[index], file: undefined, previewUrl: undefined, uploadPicture: undefined };
+                              setFormData(prev => ({ ...prev, subServices: updated }));
+                            }}
+                            className="absolute -top-2 -right-2 bg-red-500 text-white rounded-full w-5 h-5 flex items-center justify-center text-xs hover:bg-red-600"
+                          >
+                            ✕
+                          </button>
+                        </div>
+                      ) : (
+                        <label className="flex flex-col items-center justify-center w-32 h-32 border-2 border-dashed border-gray-300 rounded-lg cursor-pointer bg-white hover:bg-gray-50 transition-colors">
+                          <svg xmlns="http://www.w3.org/2000/svg" className="w-6 h-6 text-gray-400 mb-1" fill="none" viewBox="0 0 24 24" stroke="currentColor" strokeWidth={2}>
+                            <path strokeLinecap="round" strokeLinejoin="round" d="M4 16l4.586-4.586a2 2 0 012.828 0L16 16m-2-2l1.586-1.586a2 2 0 012.828 0L20 14m-6-6h.01M6 20h12a2 2 0 002-2V6a2 2 0 00-2-2H6a2 2 0 00-2 2v12a2 2 0 002 2z" />
+                          </svg>
+                          <span className="text-xs text-gray-500">Upload image</span>
+                          <input
+                            type="file"
+                            accept="image/jpeg,image/png,image/webp"
+                            className="hidden"
+                            onChange={(e) => {
+                              const file = e.target.files?.[0];
+                              if (!file) return;
+                              const previewUrl = URL.createObjectURL(file);
+                              const updated = [...formData.subServices];
+                              updated[index] = { ...updated[index], file, previewUrl };
+                              setFormData(prev => ({ ...prev, subServices: updated }));
+                            }}
+                          />
+                        </label>
                       )}
                     </div>
-                  ))}
-                </div>
+                  </div>
+                ))}
               </div>
             )}
 

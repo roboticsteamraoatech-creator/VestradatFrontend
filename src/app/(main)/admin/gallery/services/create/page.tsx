@@ -174,7 +174,7 @@ export default function ServiceSetupPage() {
   const [locations, setLocations] = useState<ApiLocation[]>([]);
   
   const getToken = (): string | null => {
-    return localStorage.getItem('token') || sessionStorage.getItem('token');
+    return localStorage.getItem('userToken') || sessionStorage.getItem('userToken');
   };
 
   useEffect(() => {

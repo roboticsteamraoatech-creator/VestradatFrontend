@@ -10,6 +10,7 @@ import ServiceFields from '@/app/components/gallery/ServiceFields';
 import MediaUpload from '@/app/components/gallery/MediaUpload';
 import PricingSection from '@/app/components/gallery/PricingSection';
 import { 
+import { BASE_URL } from '@/config/api';
   SubService, 
   TimeWindow, 
   DayAvailability, 
@@ -632,7 +633,8 @@ useEffect(() => {
         galleryData.subServices = formData.subServices.map(sub => ({
           name: sub.name,
           description: sub.description,
-          price: Number(sub.price)
+          price: Number(sub.price),
+          ...(sub.uploadPicture && !sub.previewUrl && { uploadPicture: sub.uploadPicture })
         }));
       }
 
@@ -683,6 +685,34 @@ useEffect(() => {
         for (let i = 0; i < videos.length; i++) {
           await GalleryService.uploadVideo(token, galleryItemId, videos[i]);
         }
+      }
+
+      // Upload sub-service images and patch sub-services with returned URLs
+      if (formData.hasSubServices && formData.subServices.some(s => s.file)) {
+        const updatedSubServices = [...formData.subServices];
+        for (let i = 0; i < updatedSubServices.length; i++) {
+          const sub = updatedSubServices[i];
+          if (sub.file) {
+            const uploadResult = await GalleryService.uploadImage(token, galleryItemId, sub.file, false);
+            if (uploadResult.success && uploadResult.data?.imageUrl) {
+              updatedSubServices[i] = { ...sub, uploadPicture: uploadResult.data.imageUrl, file: undefined, previewUrl: undefined };
+            }
+          }
+        }
+        // Patch the gallery item with sub-service image URLs
+        const BASE = BASE_URL;
+        await fetch(`${BASE}/api/admin/gallery/${galleryItemId}`, {
+          method: 'PUT',
+          headers: { 'Content-Type': 'application/json', 'Authorization': `Bearer ${token}` },
+          body: JSON.stringify({
+            subServices: updatedSubServices.map(s => ({
+              name: s.name,
+              description: s.description,
+              price: Number(s.price),
+              ...(s.uploadPicture && { uploadPicture: s.uploadPicture })
+            }))
+          })
+        });
       }
 
       // Success

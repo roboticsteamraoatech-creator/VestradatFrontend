@@ -11,7 +11,7 @@ import { ProfileService, UserProfile } from '@/services/ProfileService';
 
 const ProfilePage = () => {
   const router = useRouter();
-  const { profile, loading: profileLoading, error } = useProfile();
+  const { profile, loading: profileLoading, error, refetch } = useProfile();
   const [formData, setFormData] = useState({
     fullName: '',
     email: '',
@@ -119,7 +119,8 @@ const ProfilePage = () => {
       // Only update if there are changes
       if (Object.keys(updateData).length > 0) {
         await profileService.updateProfile(updateData);
-        
+        await refetch();
+
         setModalState({
           isOpen: true,
           title: 'Success',

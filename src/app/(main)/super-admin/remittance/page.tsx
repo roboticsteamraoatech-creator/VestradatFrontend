@@ -4,6 +4,7 @@
 
 import React, { useState, useEffect } from 'react';
 import Image from 'next/image';
+import { BASE_URL } from '@/config/api';
 
 const RemittancePage = () => {
   const [loading, setLoading] = useState(true);
@@ -24,8 +25,7 @@ const RemittancePage = () => {
 
   const loadConfirmedDeliveries = async () => {
     try {
-      const BASE_URL = process.env.NEXT_PUBLIC_BACKEND_API;
-      const token = typeof window !== 'undefined' ? localStorage.getItem('token') : null;
+      const token = typeof window !== 'undefined' ? localStorage.getItem('userToken') : null;
       
       const response = await fetch(`${BASE_URL}/api/orders/super-admin/confirmed-deliveries/all`, {
         headers: {
@@ -73,8 +73,7 @@ const RemittancePage = () => {
 
   const processRemittance = async (orderId: string, remittanceData: any) => {
     try {
-      const BASE_URL = process.env.NEXT_PUBLIC_BACKEND_API;
-      const token = typeof window !== 'undefined' ? localStorage.getItem('token') : null;
+      const token = typeof window !== 'undefined' ? localStorage.getItem('userToken') : null;
       
       const response = await fetch(`${BASE_URL}/api/orders/super-admin/${orderId}/process-remittance`, {
         method: 'POST',

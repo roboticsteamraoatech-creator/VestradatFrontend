@@ -1,8 +1,10 @@
 
+import { BASE_URL } from '@/config/api';
+
 export class HttpService {
   private baseUrl: string;
 
-  constructor(baseUrl: string = process.env.NEXT_PUBLIC_BACKEND_API || 'https://datacapture-backend.onrender.com') {
+  constructor(baseUrl: string = BASE_URL) {
     this.baseUrl = baseUrl;
   }
 
@@ -14,9 +16,9 @@ export class HttpService {
     // Add authorization header if token exists
     if (typeof window !== 'undefined') {
       // Try localStorage first, then sessionStorage as fallback
-      let token = localStorage.getItem('token');
+      let token = localStorage.getItem('userToken');
       if (!token) {
-        token = sessionStorage.getItem('token');
+        token = sessionStorage.getItem('userToken');
       }
       
       if (token) {

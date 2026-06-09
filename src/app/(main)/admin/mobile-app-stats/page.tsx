@@ -121,7 +121,7 @@ export default function MobileAppStatsPage() {
     setStatsLoading(true)
     setStatsError("")
     try {
-      const token = localStorage.getItem("token") || localStorage.getItem("authToken") || ""
+      const token = localStorage.getItem("userToken") || localStorage.getItem("authToken") || ""
       const response = await apkDownloadService.getDownloadStats(token)
       if (response.success) {
         setStats(response.data as DownloadStats)
@@ -141,7 +141,7 @@ export default function MobileAppStatsPage() {
     setListLoading(true)
     setListError("")
     try {
-      const token = localStorage.getItem("token") || localStorage.getItem("authToken") || ""
+      const token = localStorage.getItem("userToken") || localStorage.getItem("authToken") || ""
       // strip empty strings so they don't get sent as query params
       const cleanFilters: DownloadListFilters = Object.fromEntries(
         Object.entries(filters).filter(([, v]) => v !== "" && v !== undefined)

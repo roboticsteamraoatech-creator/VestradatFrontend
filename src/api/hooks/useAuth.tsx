@@ -1,12 +1,13 @@
-"use client";
+﻿"use client";
 
 import { useAuthContext } from "@/AuthContext";
 import axios from "axios";
+import { BASE_URL } from '@/config/api';
 
 export const apiUrl = process.env.NEXT_PUBLIC_BACKEND_API;
 
 // Use the actual backend URL directly, with fallback
-const BASE_URL = apiUrl || 'https://datacapture-backend.onrender.com';
+const BASE_URL = apiUrl || BASE_URL;
 
 export const useAuth = () => {
   const { token, user, signOut } = useAuthContext();

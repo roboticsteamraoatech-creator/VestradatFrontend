@@ -1,4 +1,4 @@
-"use client";
+﻿"use client";
 
 import { useState, useEffect, useCallback } from "react";
 import {
@@ -66,7 +66,7 @@ const MONTHS = [
 ];
 const DAYS = ["MON","TUE","WED","THU","FRI","SAT","SUN"];
 
-const BASE_URL = "https://datacapture-backend.onrender.com";
+import { BASE_URL } from '@/config/api';
 
 // ─── Helpers ──────────────────────────────────────────────────────────────────
 
@@ -374,7 +374,7 @@ const BookAppointmentPage = () => {
         individualTotal: pricingBreakdown?.individualBreakdowns?.[i]?.individualTotal,
       }));
 
-      const token = typeof window !== "undefined" ? localStorage.getItem("token") : null;
+      const token = typeof window !== "undefined" ? localStorage.getItem("userToken") : null;
       let userId: string | undefined;
       if (token) {
         try { const p = JSON.parse(atob(token.split(".")[1])); userId = p.userId || p.id; } catch {}

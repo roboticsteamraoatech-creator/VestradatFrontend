@@ -47,7 +47,7 @@ const RoleManagementPage = () => {
       
       // Debug: Check if token exists
       if (typeof window !== 'undefined') {
-        const localStorageToken = localStorage.getItem('token');
+        const localStorageToken = localStorage.getItem('userToken');
         console.log('🔑 Role Management - Auth Context Token:', token ? `${token.substring(0, 20)}...` : 'NO TOKEN');
         console.log('🔑 Role Management - localStorage Token:', localStorageToken ? `${localStorageToken.substring(0, 20)}...` : 'NO TOKEN');
         

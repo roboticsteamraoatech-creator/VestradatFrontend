@@ -1,4 +1,5 @@
-import { NextRequest, NextResponse } from 'next/server';
+﻿import { NextRequest, NextResponse } from 'next/server';
+import { BASE_URL } from '@/config/api';
 
 // GET /api/admin/measurements/:measurementId - Retrieve a specific measurement
 export async function GET(
@@ -11,7 +12,7 @@ export async function GET(
     console.log('🔄 Proxying get measurement request to backend for measurement:', measurementId);
 
     // Get the backend URL from environment variables
-    const backendUrl = process.env.NEXT_PUBLIC_BACKEND_API || process.env.API_URL || process.env.NEXT_PUBLIC_API_URL || 'https://datacapture-backend.onrender.com';
+    const backendUrl = BASE_URL;
     
     // Get the authorization token from the incoming request
     const authHeader = request.headers.get('authorization');
@@ -50,7 +51,7 @@ export async function PUT(
     console.log('🔄 Proxying update measurement request to backend for measurement:', measurementId, body);
 
     // Get the backend URL from environment variables
-    const backendUrl = process.env.NEXT_PUBLIC_BACKEND_API || process.env.API_URL || process.env.NEXT_PUBLIC_API_URL || 'https://datacapture-backend.onrender.com';
+    const backendUrl = BASE_URL;
     
     // Get the authorization token from the incoming request
     const authHeader = request.headers.get('authorization');
@@ -89,7 +90,7 @@ export async function DELETE(
     console.log('🔄 Proxying delete measurement request to backend for measurement:', measurementId);
 
     // Get the backend URL from environment variables
-    const backendUrl = process.env.NEXT_PUBLIC_BACKEND_API || process.env.API_URL || process.env.NEXT_PUBLIC_API_URL || 'https://datacapture-backend.onrender.com';
+    const backendUrl = BASE_URL;
     
     // Get the authorization token from the incoming request
     const authHeader = request.headers.get('authorization');

@@ -90,6 +90,6 @@ export class ProfileService {
 
   // Update user profile
   async updateProfile(data: Partial<UserProfile>) {
-    return this.httpService.patchData(data, routes.updateUserProfile());
+    return this.httpService.putData(data, routes.updateUserProfile());
   }
 }

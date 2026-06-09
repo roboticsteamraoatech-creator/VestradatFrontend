@@ -1,6 +1,7 @@
-// services/VerifiedSubscriptionService.ts
+﻿// services/VerifiedSubscriptionService.ts
 import { HttpService } from './HttpService';
 import { routes } from './apiRoutes';
+import { BASE_URL } from '@/config/api';
 
 // Define the verified subscription interface to match the API response
 interface Branch {
@@ -104,7 +105,7 @@ class VerifiedSubscriptionService {
   // Get all verified subscriptions with filtering
   async getVerifiedSubscriptions(search?: string): Promise<VerifiedSubscription[]> {
     try {
-      const url = `${process.env.NEXT_PUBLIC_API_BASE_URL || 'https://datacapture-backend.onrender.com'}${routes.getVerifiedSubscriptions(search)}`;
+      const url = `${BASE_URL}${routes.getVerifiedSubscriptions(search)}`;
       const response = await this.httpService.getData<VerifiedSubscriptionsResponse>(url);
       
       if (response.success) {
@@ -121,7 +122,7 @@ class VerifiedSubscriptionService {
   // Get a specific verified subscription by ID
   async getVerifiedSubscriptionById(id: string): Promise<VerifiedSubscription> {
     try {
-      const url = `${process.env.NEXT_PUBLIC_API_BASE_URL || 'https://datacapture-backend.onrender.com'}${routes.getVerifiedSubscriptionById(id)}`;
+      const url = `${BASE_URL}${routes.getVerifiedSubscriptionById(id)}`;
       const response = await this.httpService.getData<VerifiedSubscriptionResponse>(url);
       
       if (response.success) {
@@ -138,7 +139,7 @@ class VerifiedSubscriptionService {
   // Create a new verified subscription
   async createVerifiedSubscription(data: CreateVerifiedSubscriptionData): Promise<VerifiedSubscription> {
     try {
-      const url = `${process.env.NEXT_PUBLIC_API_BASE_URL || 'https://datacapture-backend.onrender.com'}${routes.createVerifiedSubscription()}`;
+      const url = `${BASE_URL}${routes.createVerifiedSubscription()}`;
       const response = await this.httpService.postData<VerifiedSubscriptionResponse>(data, url);
       
       if (response.success) {
@@ -155,7 +156,7 @@ class VerifiedSubscriptionService {
   // Update a verified subscription
   async updateVerifiedSubscription(id: string, data: UpdateVerifiedSubscriptionData): Promise<VerifiedSubscription> {
     try {
-      const url = `${process.env.NEXT_PUBLIC_API_BASE_URL || 'https://datacapture-backend.onrender.com'}${routes.updateVerifiedSubscription(id)}`;
+      const url = `${BASE_URL}${routes.updateVerifiedSubscription(id)}`;
       const response = await this.httpService.putData<VerifiedSubscriptionResponse>({...data, id}, url);
       
       if (response.success) {
@@ -172,7 +173,7 @@ class VerifiedSubscriptionService {
   // Delete a verified subscription
   async deleteVerifiedSubscription(id: string): Promise<boolean> {
     try {
-      const url = `${process.env.NEXT_PUBLIC_API_BASE_URL || 'https://datacapture-backend.onrender.com'}${routes.deleteVerifiedSubscription(id)}`;
+      const url = `${BASE_URL}${routes.deleteVerifiedSubscription(id)}`;
       const response = await this.httpService.deleteData<{ success: boolean; message: string }>(url);
       
       return response.success;

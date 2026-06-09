@@ -60,14 +60,17 @@ const ChangePasswordForm: React.FC<ChangePasswordFormProps> = ({ userId }) => {
       });
       
       if (response.success) {
+        const generatedPassword = response.data?.generatedPassword;
         toast({
           title: "Success",
-          description: response.data.message || "Password updated successfully",
+          description: generatedPassword
+            ? `Password updated successfully. New password: ${generatedPassword}`
+            : (response.data?.message || (response as any).message || "Password updated successfully"),
           variant: "default"
         });
         router.push('/admin/users');
       } else {
-        throw new Error(response.data?.message || "Failed to update password");
+        throw new Error(response.data?.message || (response as any).message || "Failed to update password");
       }
     } catch (error: any) {
       console.error("Error updating password:", error);

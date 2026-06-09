@@ -1,4 +1,5 @@
-import { Organization } from '@/types';
+﻿import { Organization } from '@/types';
+import { BASE_URL } from '@/config/api';
 
 interface GetOrganizationsParams {
   page?: number;
@@ -25,9 +26,9 @@ class OrganizationService {
 
   static async createOrganization(data: CreateOrganizationData): Promise<Organization> {
     try {
-      const token = typeof window !== 'undefined' ? localStorage.getItem('token') : null;
+      const token = typeof window !== 'undefined' ? localStorage.getItem('userToken') : null;
       
-      const response = await fetch(`https://datacapture-backend.onrender.com${this.BASE_URL}`, {
+      const response = await fetch(`${BASE_URL}${this.BASE_URL}`, {
         method: 'POST',
         headers: {
           'Content-Type': 'application/json',
@@ -57,7 +58,7 @@ class OrganizationService {
     totalPages: number;
   }> {
     try {
-      const token = typeof window !== 'undefined' ? localStorage.getItem('token') : null;
+      const token = typeof window !== 'undefined' ? localStorage.getItem('userToken') : null;
       
       // Build query string from params
       const queryParams = new URLSearchParams();
@@ -72,7 +73,7 @@ class OrganizationService {
       if (params.status) queryParams.append('status', params.status);
 
       const queryString = queryParams.toString();
-      const url = queryString ? `https://datacapture-backend.onrender.com${this.BASE_URL}?${queryString}` : `https://datacapture-backend.onrender.com${this.BASE_URL}`;
+      const url = queryString ? `${BASE_URL}${this.BASE_URL}?${queryString}` : `${BASE_URL}${this.BASE_URL}`;
 
       const response = await fetch(url, {
         headers: {
@@ -94,9 +95,9 @@ class OrganizationService {
 
   static async getOrganizationById(id: string): Promise<Organization> {
     try {
-      const token = typeof window !== 'undefined' ? localStorage.getItem('token') : null;
+      const token = typeof window !== 'undefined' ? localStorage.getItem('userToken') : null;
       
-      const response = await fetch(`https://datacapture-backend.onrender.com${this.BASE_URL}/${id}`, {
+      const response = await fetch(`${BASE_URL}${this.BASE_URL}/${id}`, {
         headers: {
           ...(token && { 'Authorization': `Bearer ${token}` }),
         }
@@ -116,9 +117,9 @@ class OrganizationService {
 
   static async updateOrganization(id: string, data: CreateOrganizationData): Promise<Organization> {
     try {
-      const token = typeof window !== 'undefined' ? localStorage.getItem('token') : null;
+      const token = typeof window !== 'undefined' ? localStorage.getItem('userToken') : null;
       
-      const response = await fetch(`https://datacapture-backend.onrender.com${this.BASE_URL}/${id}`, {
+      const response = await fetch(`${BASE_URL}${this.BASE_URL}/${id}`, {
         method: 'PUT',
         headers: {
           'Content-Type': 'application/json',
@@ -142,9 +143,9 @@ class OrganizationService {
 
   static async deleteOrganization(id: string): Promise<void> {
     try {
-      const token = typeof window !== 'undefined' ? localStorage.getItem('token') : null;
+      const token = typeof window !== 'undefined' ? localStorage.getItem('userToken') : null;
       
-      const response = await fetch(`https://datacapture-backend.onrender.com${this.BASE_URL}/${id}`, {
+      const response = await fetch(`${BASE_URL}${this.BASE_URL}/${id}`, {
         method: 'DELETE',
         headers: {
           ...(token && { 'Authorization': `Bearer ${token}` }),
@@ -162,9 +163,9 @@ class OrganizationService {
 
   static async updateOrganizationStatus(id: string, status: 'active' | 'suspended' | 'inactive'): Promise<Organization> {
     try {
-      const token = typeof window !== 'undefined' ? localStorage.getItem('token') : null;
+      const token = typeof window !== 'undefined' ? localStorage.getItem('userToken') : null;
       
-      const response = await fetch(`https://datacapture-backend.onrender.com${this.BASE_URL}/${id}/status`, {
+      const response = await fetch(`${BASE_URL}${this.BASE_URL}/${id}/status`, {
         method: 'PUT',
         headers: {
           'Content-Type': 'application/json',
@@ -193,7 +194,7 @@ class OrganizationService {
     format: string;
   }> {
     try {
-      const token = typeof window !== 'undefined' ? localStorage.getItem('token') : null;
+      const token = typeof window !== 'undefined' ? localStorage.getItem('userToken') : null;
       
       // Build query string from params
       const queryParams = new URLSearchParams();
@@ -208,7 +209,7 @@ class OrganizationService {
       if (params.status) queryParams.append('status', params.status);
 
       const queryString = queryParams.toString();
-      const url = queryString ? `https://datacapture-backend.onrender.com${this.BASE_URL}/export/${format}?${queryString}` : `https://datacapture-backend.onrender.com${this.BASE_URL}/export/${format}`;
+      const url = queryString ? `${BASE_URL}${this.BASE_URL}/export/${format}?${queryString}` : `${BASE_URL}${this.BASE_URL}/export/${format}`;
 
       const response = await fetch(url, {
         headers: {

@@ -1,4 +1,4 @@
-// "use client";
+﻿// "use client";
 
 // import React, { useState } from 'react';
 // import OrganizationsTable from '@/components/forms/OrganizationsTable';
@@ -49,6 +49,7 @@ import {
 import { useRouter } from "next/navigation";
 import OrganizationService from "@/services/OrganizationService";
 import { Organization } from "@/types";
+import { BASE_URL } from '@/config/api';
 
 const OrganisationManagementPage = () => {
   const router = useRouter();
@@ -175,7 +176,7 @@ const OrganisationManagementPage = () => {
       };
 
       // Directly call the export endpoint with all parameters
-      const token = typeof window !== 'undefined' ? localStorage.getItem('token') : null;
+      const token = typeof window !== 'undefined' ? localStorage.getItem('userToken') : null;
       
       // Build query string from params
       const queryParams = new URLSearchParams();
@@ -188,8 +189,8 @@ const OrganisationManagementPage = () => {
 
       const queryString = queryParams.toString();
       const url = queryString 
-        ? `https://datacapture-backend.onrender.com/api/super-admin/organizations/export/${format}?${queryString}` 
-        : `https://datacapture-backend.onrender.com/api/super-admin/organizations/export/${format}`;
+        ? `${BASE_URL}/api/super-admin/organizations/export/${format}?${queryString}` 
+        : `${BASE_URL}/api/super-admin/organizations/export/${format}`;
 
       const response = await fetch(url, {
         headers: {

@@ -58,9 +58,18 @@ const CreateGroupPage = () => {
       });
       return;
     }
-    
+
+    if (selectedMembers.length === 0) {
+      toast({
+        title: 'Error',
+        description: 'Please add at least one member to the group',
+        variant: 'destructive',
+      });
+      return;
+    }
+
     setLoading(true);
-    
+
     try {
       const groupService = new GroupService();
       const groupData: CreateGroupData = {
@@ -68,20 +77,35 @@ const CreateGroupPage = () => {
         description: groupDescription,
         memberIds: selectedMembers,
       };
-      
-      await groupService.createGroup(groupData);
-      
+
+      const response = await groupService.createGroup(groupData);
+
+      if (!response.success) {
+        const errorMsg = (response as any).message || response.data?.message || 'Failed to create group';
+        toast({
+          title: 'Error',
+          description: errorMsg.includes('already exists')
+            ? `A group with the name "${groupName}" already exists. Please choose a different name.`
+            : errorMsg,
+          variant: 'destructive',
+        });
+        return;
+      }
+
       toast({
         title: 'Success',
         description: `Group "${groupName}" created successfully!`,
       });
-      
+
       router.push('/admin/group-management');
     } catch (error: any) {
       console.error('Error creating group:', error);
+      const errorMsg = error.message || 'Failed to create group';
       toast({
         title: 'Error',
-        description: error.message || 'Failed to create group',
+        description: errorMsg.includes('already exists')
+          ? `A group with the name "${groupName}" already exists. Please choose a different name.`
+          : errorMsg,
         variant: 'destructive',
       });
     } finally {
@@ -236,8 +260,8 @@ const CreateGroupPage = () => {
             
             <button
               type="submit"
-              disabled={loading}
-              className={`px-6 py-3 bg-[#5D2A8B] text-white rounded-lg hover:bg-purple-700 transition-colors duration-200 flex items-center gap-2 ${loading ? 'opacity-50 cursor-not-allowed' : ''}`}
+              disabled={loading || selectedMembers.length === 0}
+              className={`px-6 py-3 bg-[#5D2A8B] text-white rounded-lg hover:bg-purple-700 transition-colors duration-200 flex items-center gap-2 ${(loading || selectedMembers.length === 0) ? 'opacity-50 cursor-not-allowed' : ''}`}
             >
               {loading ? (
                 <>

@@ -1,3 +1,4 @@
+﻿import { BASE_URL } from '@/config/api';
 
 export interface IIndustry {
   _id: string;
@@ -38,7 +39,7 @@ class IndustryService {
 
   private static getToken(): string | null {
     if (typeof window !== 'undefined') {
-      return localStorage.getItem('token') || sessionStorage.getItem('token');
+      return localStorage.getItem('userToken') || sessionStorage.getItem('userToken');
     }
     return null;
   }
@@ -101,7 +102,7 @@ class IndustryService {
         url += (url.includes('?') ? '&' : '?') + additionalParams;
       }
 
-      const fullUrl = `${process.env.NEXT_PUBLIC_BACKEND_API_URL || 'https://datacapture-backend.onrender.com'}${url}`;
+      const fullUrl = `${BASE_URL}${url}`;
       
       const response = await fetch(fullUrl, {
         headers: {
@@ -165,7 +166,7 @@ class IndustryService {
         getIndustryById: (id: string) => `/api/super-admin/industries/${id}`,
       };
       
-      const url = `${process.env.NEXT_PUBLIC_BACKEND_API_URL || 'https://datacapture-backend.onrender.com'}${apiRoutes.getIndustryById(id)}`;
+      const url = `${BASE_URL}${apiRoutes.getIndustryById(id)}`;
       
       const response = await fetch(url, {
         headers: {
@@ -217,7 +218,7 @@ class IndustryService {
         createIndustry: () => '/api/super-admin/industries',
       };
       
-      const url = `${process.env.NEXT_PUBLIC_BACKEND_API_URL || 'https://datacapture-backend.onrender.com'}${apiRoutes.createIndustry()}`;
+      const url = `${BASE_URL}${apiRoutes.createIndustry()}`;
       
       const response = await fetch(url, {
         method: 'POST',
@@ -265,7 +266,7 @@ class IndustryService {
         updateIndustry: (id: string) => `/api/super-admin/industries/${id}`,
       };
       
-      const url = `${process.env.NEXT_PUBLIC_BACKEND_API_URL || 'https://datacapture-backend.onrender.com'}${apiRoutes.updateIndustry(id)}`;
+      const url = `${BASE_URL}${apiRoutes.updateIndustry(id)}`;
       
       const response = await fetch(url, {
         method: 'PUT',
@@ -313,7 +314,7 @@ class IndustryService {
         deleteIndustry: (id: string) => `/api/super-admin/industries/${id}`,
       };
       
-      const url = `${process.env.NEXT_PUBLIC_BACKEND_API_URL || 'https://datacapture-backend.onrender.com'}${apiRoutes.deleteIndustry(id)}`;
+      const url = `${BASE_URL}${apiRoutes.deleteIndustry(id)}`;
       
       const response = await fetch(url, {
         method: 'DELETE',
@@ -367,7 +368,7 @@ class IndustryService {
         updateIndustryStatus: (id: string) => `/api/super-admin/industries/${id}/status`,
       };
       
-      const url = `${process.env.NEXT_PUBLIC_BACKEND_API_URL || 'https://datacapture-backend.onrender.com'}${apiRoutes.updateIndustryStatus(id)}`;
+      const url = `${BASE_URL}${apiRoutes.updateIndustryStatus(id)}`;
       
       const response = await fetch(url, {
         method: 'PUT',
@@ -426,7 +427,7 @@ class IndustryService {
       if (params.status) queryParams.append('status', params.status);
 
       const queryString = queryParams.toString();
-      const baseUrl = `${process.env.NEXT_PUBLIC_BACKEND_API_URL || 'https://datacapture-backend.onrender.com'}${apiRoutes.exportIndustries(format)}`;
+      const baseUrl = `${BASE_URL}${apiRoutes.exportIndustries(format)}`;
       const url = queryString ? `${baseUrl}?${queryString}` : baseUrl;
 
       const response = await fetch(url, {

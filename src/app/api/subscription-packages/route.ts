@@ -1,4 +1,5 @@
-import { NextRequest } from 'next/server';
+﻿import { NextRequest } from 'next/server';
+import { BASE_URL } from '@/config/api';
 
 export async function GET(request: NextRequest) {
   try {
@@ -21,7 +22,7 @@ export async function GET(request: NextRequest) {
     if (status) queryParams.set('status', status);
     
     // Call the actual backend API
-    const backendUrl = `https://datacapture-backend.onrender.com/api/subscription-packages?${queryParams.toString()}`;
+    const backendUrl = `${BASE_URL}/api/subscription-packages?${queryParams.toString()}`;
     
     const response = await fetch(backendUrl, {
       method: 'GET',
@@ -224,7 +225,7 @@ export async function POST(request: NextRequest) {
     }
 
     // Call the actual backend API
-    const response = await fetch('https://datacapture-backend.onrender.com/api/subscription-packages', {
+    const response = await fetch(`${BASE_URL}/api/subscription-packages`, {
       method: 'POST',
       headers: {
         'Content-Type': 'application/json',

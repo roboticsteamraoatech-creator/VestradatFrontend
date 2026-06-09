@@ -33,7 +33,7 @@ export const UserTopBar = () => {
 
   const handleConfirmLogout = () => {
     setShowLogoutModal(false);
-    localStorage.removeItem('token');
+    localStorage.removeItem('userToken');
     router.push('/auth/login');
   };
 

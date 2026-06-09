@@ -1,4 +1,5 @@
-import { NextRequest, NextResponse } from 'next/server';
+﻿import { NextRequest, NextResponse } from 'next/server';
+import { BASE_URL } from '@/config/api';
 
 // POST /api/admin/users/:userId/generate-id - Generate custom user ID
 export async function POST(
@@ -11,7 +12,7 @@ export async function POST(
     console.log('🔄 Proxying custom user ID generation request to backend for user:', userId);
 
     // Get the backend URL from environment variables
-    const backendUrl = process.env.NEXT_PUBLIC_BACKEND_API || process.env.API_URL || process.env.NEXT_PUBLIC_API_URL || 'https://datacapture-backend.onrender.com';
+    const backendUrl = BASE_URL;
     
     // Get the authorization token from the incoming request
     const authHeader = request.headers.get('authorization');

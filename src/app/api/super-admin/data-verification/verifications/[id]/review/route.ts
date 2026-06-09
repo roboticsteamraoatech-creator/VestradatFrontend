@@ -1,4 +1,5 @@
-import { NextResponse, NextRequest } from 'next/server';
+﻿import { NextResponse, NextRequest } from 'next/server';
+import { BASE_URL } from '@/config/api';
 
 // POST /api/super-admin/data-verification/verifications/:id/review
 export async function POST(
@@ -21,7 +22,7 @@ export async function POST(
     }
     
     // Call the actual backend API
-    const backendUrl = `https://datacapture-backend.onrender.com/api/super-admin/data-verification/verifications/${id}/review`;
+    const backendUrl = `${BASE_URL}/api/super-admin/data-verification/verifications/${id}/review`;
     
     const headers: Record<string, string> = {
       'Content-Type': 'application/json',

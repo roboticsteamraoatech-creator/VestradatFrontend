@@ -2,7 +2,7 @@
 
 import type React from "react";
 import { useState, useEffect } from "react";
-import { ShieldCheck, Building, Users, MapPin, CreditCard, AlertCircle, CheckCircle } from "lucide-react";
+import { ShieldCheck, Building, Users, MapPin, CreditCard, AlertCircle, CheckCircle, TrendingUp } from "lucide-react";
 import OrganizationProfileService, { OrganizationProfile } from "@/services/OrganizationProfileService";
 import LocationPaymentService, { 
   PaymentCheckResponse, 
@@ -197,6 +197,10 @@ const SubscriptionPage: React.FC = () => {
               <a href="/admin/subscription/profile" className="px-4 py-2 bg-purple-600 text-white rounded-lg hover:bg-purple-700 transition-colors flex items-center">
                 <ShieldCheck className="w-4 h-4 mr-2" />
                 Verify Profile
+              </a>
+              <a href="/admin/subscription/packages" className="px-4 py-2 bg-green-600 text-white rounded-lg hover:bg-green-700 transition-colors flex items-center">
+                <TrendingUp className="w-4 h-4 mr-2" />
+                Upgrade Package
               </a>
               
               {/* Payment button - only show if payment is required */}

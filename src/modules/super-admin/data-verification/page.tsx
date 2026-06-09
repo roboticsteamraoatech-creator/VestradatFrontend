@@ -122,7 +122,7 @@ const DataVerificationPage = () => {
       setLoading(true);
       
       // Fetch all data in parallel
-      const token = localStorage.getItem('token') || '';
+      const token = localStorage.getItem('userToken') || '';
       const [verificationsRes, usersRes, statsRes]: [any, any, any] = await Promise.all([
         dataVerificationService.getAllVerificationsSuperAdmin(selectedStatus === 'all' ? undefined : selectedStatus, token),
         dataVerificationService.getDataVerificationUsers(token),

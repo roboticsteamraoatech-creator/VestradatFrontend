@@ -1,10 +1,11 @@
-import { Order } from '@/types/order';
+﻿import { Order } from '@/types/order';
+import { BASE_URL } from '@/config/api';
 
 class DeliveryService {
   private baseUrl: string;
 
   constructor() {
-    this.baseUrl = process.env.NEXT_PUBLIC_BACKEND_API || 'https://datacapture-backend.onrender.com';
+    this.baseUrl = BASE_URL;
   }
 
   /**

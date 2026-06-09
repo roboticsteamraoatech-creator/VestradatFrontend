@@ -1,3 +1,4 @@
+﻿import { BASE_URL } from '@/config/api';
 // Define interfaces for type safety
 export interface ModuleConfig {
   moduleKey: string;
@@ -65,7 +66,7 @@ class ServiceService {
         headers['Authorization'] = `Bearer ${this.token}`;
       }
 
-      const response = await fetch(`${process.env.NEXT_PUBLIC_BACKEND_API_URL || 'https://datacapture-backend.onrender.com'}/api/services`, {
+      const response = await fetch(`${BASE_URL}/api/services`, {
         method: 'GET',
         headers,
       });
@@ -137,7 +138,7 @@ async validateServiceName(name: string, excludeId?: string): Promise<boolean> {
         headers['Authorization'] = `Bearer ${this.token}`;
       }
 
-      const response = await fetch(`${process.env.NEXT_PUBLIC_BACKEND_API_URL || 'https://datacapture-backend.onrender.com'}/api/services/${id}`, {
+      const response = await fetch(`${BASE_URL}/api/services/${id}`, {
         method: 'GET',
         headers,
       });
@@ -187,7 +188,7 @@ async validateServiceName(name: string, excludeId?: string): Promise<boolean> {
         headers['Authorization'] = `Bearer ${this.token}`;
       }
 
-      const response = await fetch(`${process.env.NEXT_PUBLIC_BACKEND_API_URL || 'https://datacapture-backend.onrender.com'}/api/services`, {
+      const response = await fetch(`${BASE_URL}/api/services`, {
         method: 'POST',
         headers,
         body: JSON.stringify(data),
@@ -238,7 +239,7 @@ async validateServiceName(name: string, excludeId?: string): Promise<boolean> {
         headers['Authorization'] = `Bearer ${this.token}`;
       }
 
-      const response = await fetch(`${process.env.NEXT_PUBLIC_BACKEND_API_URL || 'https://datacapture-backend.onrender.com'}/api/services/${id}`, {
+      const response = await fetch(`${BASE_URL}/api/services/${id}`, {
         method: 'PUT',
         headers,
         body: JSON.stringify(data),
@@ -289,7 +290,7 @@ async validateServiceName(name: string, excludeId?: string): Promise<boolean> {
         headers['Authorization'] = `Bearer ${this.token}`;
       }
 
-      const response = await fetch(`${process.env.NEXT_PUBLIC_BACKEND_API_URL || 'https://datacapture-backend.onrender.com'}/api/services/${id}`, {
+      const response = await fetch(`${BASE_URL}/api/services/${id}`, {
         method: 'DELETE',
         headers,
       });

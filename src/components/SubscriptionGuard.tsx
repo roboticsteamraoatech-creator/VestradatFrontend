@@ -1,10 +1,11 @@
-"use client";
+﻿"use client";
 
 import React, { useState, useEffect } from 'react';
 import { useRouter } from 'next/navigation';
 import { useAuthContext } from '@/AuthContext';
 import axios from 'axios';
 import { mockSubscriptionService } from '@/services/mockSubscriptionService';
+import { BASE_URL } from '@/config/api';
 
 interface SubscriptionGuardProps {
   children: React.ReactNode;
@@ -37,7 +38,7 @@ const SubscriptionGuard: React.FC<SubscriptionGuardProps> = ({ children }) => {
         try {
           // First try the real API with correct endpoint
           const response = await axios.get(
-            `${process.env.NEXT_PUBLIC_BACKEND_API || 'https://datacapture-backend.onrender.com'}/api/user-subscriptions/user/${user.id}/status`,
+            `${BASE_URL}/api/user-subscriptions/user/${user.id}/status`,
             {
               headers: {
                 'Authorization': `Bearer ${token}`,

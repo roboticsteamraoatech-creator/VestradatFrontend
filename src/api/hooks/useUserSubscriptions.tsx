@@ -1,5 +1,6 @@
-import { useState, useEffect } from "react";
+﻿import { useState, useEffect } from "react";
 import { useAuthContext } from '@/AuthContext';
+import { BASE_URL } from '@/config/api';
 
 interface Service {
   serviceId: string;
@@ -50,7 +51,7 @@ const useUserSubscriptions = (userId: string | null) => {
         setError(null);
         
         // Call the backend API directly
-        const backendUrl = `${process.env.NEXT_PUBLIC_BACKEND_API || 'https://datacapture-backend.onrender.com'}/api/user-subscriptions/user/${userId}/active`;
+        const backendUrl = `${BASE_URL}/api/user-subscriptions/user/${userId}/active`;
         
         console.log('Fetching user subscriptions for userId:', userId);
         console.log('Using token:', token ? 'Token present' : 'No token');

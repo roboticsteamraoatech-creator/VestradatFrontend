@@ -51,6 +51,8 @@ interface GalleryItem {
   visibilityToPublic: boolean;
   notes?: string;
   locationIndex: number;
+  imageUrl?: string;
+  videoUrl?: string;
   images: string[];
   videos: string[];
   createdAt: string;
@@ -91,6 +93,26 @@ const GalleryManagementPage = () => {
   const [totalItems, setTotalItems] = useState(0);
   const [sortBy, setSortBy] = useState('createdAt');
   const [sortOrder, setSortOrder] = useState<'asc' | 'desc'>('desc');
+  const [totalProductCount, setTotalProductCount] = useState(0);
+  const [totalServiceCount, setTotalServiceCount] = useState(0);
+  const [mediaUsageVideos, setMediaUsageVideos] = useState<number | null>(null);
+
+  // Fetch server-side product/service totals and media usage (Bugs 7/8/9)
+  const fetchTypeCounts = async () => {
+    if (!token) return;
+    try {
+      const [productResult, serviceResult, mediaResult] = await Promise.all([
+        GalleryService.getGalleryItems(token, 1, 1, undefined, undefined, undefined, undefined, undefined, undefined, 'createdAt', 'desc', undefined, undefined, undefined, undefined, 'product'),
+        GalleryService.getGalleryItems(token, 1, 1, undefined, undefined, undefined, undefined, undefined, undefined, 'createdAt', 'desc', undefined, undefined, undefined, undefined, 'service'),
+        GalleryService.getMediaUsage(token),
+      ]);
+      if (productResult.success) setTotalProductCount(productResult.data?.pagination?.total || 0);
+      if (serviceResult.success) setTotalServiceCount(serviceResult.data?.pagination?.total || 0);
+      if (mediaResult.success && mediaResult.data) setMediaUsageVideos(mediaResult.data.currentVideos ?? null);
+    } catch (e) {
+      // Non-critical: fall back to page-level counts
+    }
+  };
 
   // Fetch gallery items
   const fetchGalleryItems = async () => {
@@ -160,6 +182,12 @@ const GalleryManagementPage = () => {
       fetchGalleryItems();
     }
   }, [token, currentPage, sortBy, sortOrder, searchTerm, selectedCategory, selectedIndustry, selectedLocation, selectedItemType]);
+
+  useEffect(() => {
+    if (token) {
+      fetchTypeCounts();
+    }
+  }, [token]);
 
   const handleCreateItem = () => {
     router.push('/admin/gallery/create');
@@ -269,9 +297,9 @@ const GalleryManagementPage = () => {
 
   const locationStats = getLocationUsageStats();
 
-  // Count by item type
-  const productCount = getItemTypeCount('product');
-  const serviceCount = getItemTypeCount('service');
+  // Use server-side totals when available, fall back to page-level counts
+  const productCount = totalProductCount || getItemTypeCount('product');
+  const serviceCount = totalServiceCount || getItemTypeCount('service');
 
   const formatNaira = (amount: number) => {
     return new Intl.NumberFormat('en-NG', {
@@ -387,7 +415,7 @@ const GalleryManagementPage = () => {
                 </div>
                 <div className="ml-3">
                   <p className="text-xs font-medium text-gray-600">Videos</p>
-                  <p className="text-xl font-bold text-gray-900">{locationStats.totalVideos}</p>
+                  <p className="text-xl font-bold text-gray-900">{mediaUsageVideos !== null ? mediaUsageVideos : locationStats.totalVideos}</p>
                 </div>
               </div>
             </div>
@@ -573,9 +601,9 @@ const GalleryManagementPage = () => {
                         <td className="px-4 py-3">
                           <div className="flex items-center">
                             <div className="h-8 w-8 flex-shrink-0">
-                              {item.images && item.images.length > 0 ? (
-                                <img 
-                                  src={item.images[0]} 
+                              {(item.imageUrl || (item.images && item.images.length > 0)) ? (
+                                <img
+                                  src={item.imageUrl || item.images[0]}
                                   alt={item.name || item.description}
                                   className="h-8 w-8 rounded-lg object-cover"
                                 />
@@ -609,11 +637,10 @@ const GalleryManagementPage = () => {
                           </span>
                         </td>
                         <td className="px-4 py-3">
-                          <div className="text-xs font-medium text-gray-900">{formatNaira(item.priceInDollars)}</div>
-                          <div className="text-xs text-green-600">
+                          <div className="text-xs font-medium text-gray-900">
                             {formatNaira(item.actualAmount || calculateActualAmount(
-                              item.priceInDollars, 
-                              item.discountPercentage, 
+                              item.priceInDollars,
+                              item.discountPercentage,
                               item.platformChargePercentage
                             ))}
                           </div>

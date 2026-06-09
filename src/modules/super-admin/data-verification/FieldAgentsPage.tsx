@@ -38,7 +38,7 @@ const FieldAgentsPage = () => {
   const fetchUsers = async () => {
     try {
       setLoading(true);
-      const token = localStorage.getItem('token') || '';
+      const token = localStorage.getItem('userToken') || '';
       const response = await dataVerificationService.getDataVerificationUsers(token);
       
       if (!response.success) {

@@ -166,7 +166,7 @@ export default function DeliveryPage() {
   const loadOrders = async () => {
     setLoading(true);
     try {
-      const token = localStorage.getItem("token");
+      const token = localStorage.getItem("userToken");
       if (!token) return;
       const res = await deliveryService.getUserOrders(token);
       if (res.success && res.data) {
@@ -194,7 +194,7 @@ export default function DeliveryPage() {
     setUserImg(null); setUserPreview(null);
     setErrorMsg("");
     // Auto-load template
-    const token = localStorage.getItem("token");
+    const token = localStorage.getItem("userToken");
     if (token) {
       const tmpl = await deliveryService.getDeliveryTemplate(order._id, token);
       if (tmpl.success && tmpl.data) setDeclaration(tmpl.data.template);
@@ -225,7 +225,7 @@ export default function DeliveryPage() {
     setSubmitting(true);
     setErrorMsg("");
     try {
-      const token = localStorage.getItem("token");
+      const token = localStorage.getItem("userToken");
       if (!token) return;
       const res = await deliveryService.confirmDelivery(selectedOrder._id, token, {
         deliveryMode,

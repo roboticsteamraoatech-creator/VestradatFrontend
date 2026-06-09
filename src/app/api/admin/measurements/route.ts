@@ -1,4 +1,5 @@
-import { NextRequest, NextResponse } from 'next/server';
+﻿import { NextRequest, NextResponse } from 'next/server';
+import { BASE_URL } from '@/config/api';
 
 // GET /api/admin/measurements - Retrieve body measurements for all users in the organization
 export async function GET(request: NextRequest) {
@@ -12,7 +13,7 @@ export async function GET(request: NextRequest) {
     console.log('🔄 Proxying get measurements request to backend with params:', { page, limit, userId });
 
     // Get the backend URL from environment variables
-    const backendUrl = process.env.NEXT_PUBLIC_BACKEND_API || process.env.API_URL || process.env.NEXT_PUBLIC_API_URL || 'https://datacapture-backend.onrender.com';
+    const backendUrl = BASE_URL;
     
     // Build query string
     let queryString = `page=${page}&limit=${limit}`;
@@ -53,7 +54,7 @@ export async function POST(request: NextRequest) {
     console.log('🔄 Proxying create measurement request to backend with payload:', body);
 
     // Get the backend URL from environment variables
-    const backendUrl = process.env.NEXT_PUBLIC_BACKEND_API || process.env.API_URL || process.env.NEXT_PUBLIC_API_URL || 'https://datacapture-backend.onrender.com';
+    const backendUrl = BASE_URL;
     
     // Get the authorization token from the incoming request
     const authHeader = request.headers.get('authorization');

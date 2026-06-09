@@ -107,6 +107,8 @@ export interface AvailableSlotsResponse {
 }
 
 export interface OrganizationUser {
+  _id?: string;
+  id?: string;
   name: string;
   email: string;
   customUserId: string;

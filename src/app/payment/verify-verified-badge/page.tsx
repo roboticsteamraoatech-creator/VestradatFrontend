@@ -1,8 +1,9 @@
-"use client"
+﻿"use client"
 
 import { useState, useEffect, Suspense } from 'react';
 import { useRouter, useSearchParams } from 'next/navigation';
 import { CheckCircle, XCircle, Clock } from 'lucide-react';
+import { BASE_URL } from '@/config/api';
 
 const VerifiedBadgeVerificationComponent = () => {
   const router = useRouter();
@@ -34,7 +35,7 @@ const VerifiedBadgeVerificationComponent = () => {
       setMessage('Verifying your payment...');
       
       try {
-        const token = localStorage.getItem('token');
+        const token = localStorage.getItem('userToken');
         
         if (!token) {
           setVerificationStatus('failed');
@@ -48,7 +49,7 @@ const VerifiedBadgeVerificationComponent = () => {
         
         const requestBody = { tx_ref: txRef };
         
-        const response = await fetch(`${process.env.NEXT_PUBLIC_BACKEND_API || 'https://datacapture-backend.onrender.com'}/api/payment/verified-badge/verify`, {
+        const response = await fetch(`${BASE_URL}/api/payment/verified-badge/verify`, {
           method: 'POST',
           headers: {
             'Content-Type': 'application/json',

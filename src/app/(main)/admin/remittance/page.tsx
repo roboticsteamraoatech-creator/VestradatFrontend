@@ -67,7 +67,7 @@ const RemittancePage = () => {
             onClick={() => {
               console.log('🔴 Clicking "Add New Bank Details" button');
               console.log('🔴 Navigating to:', '/admin/remittance/create');
-              console.log('🔴 Current token exists:', typeof window !== 'undefined' ? !!localStorage.getItem('token') : false);
+              console.log('🔴 Current token exists:', typeof window !== 'undefined' ? !!localStorage.getItem('userToken') : false);
             }}
             className="px-4 py-2 bg-[#5d2a8b] text-white rounded-lg hover:bg-[#7a3aa3] transition-colors flex items-center"
           >

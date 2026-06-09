@@ -1,3 +1,4 @@
+﻿import { BASE_URL } from '@/config/api';
 
 
 interface SignupAndDownloadPayload {
@@ -140,7 +141,7 @@ export class ApkDownloadService {
 
   constructor() {
     // Use environment variable with fallback
-    this.baseUrl =  "https://datacapture-backend.onrender.com";
+    this.baseUrl =  BASE_URL;
     
     // Log the base URL for debugging (only in development)
   

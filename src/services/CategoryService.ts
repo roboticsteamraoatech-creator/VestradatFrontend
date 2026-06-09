@@ -1,3 +1,4 @@
+﻿import { BASE_URL } from '@/config/api';
 
 
 export interface Category {
@@ -42,7 +43,7 @@ class CategoryService {
 
   private static getToken(): string | null {
     if (typeof window !== 'undefined') {
-      return localStorage.getItem('token') || sessionStorage.getItem('token');
+      return localStorage.getItem('userToken') || sessionStorage.getItem('userToken');
     }
     return null;
   }
@@ -91,8 +92,8 @@ class CategoryService {
 
       const queryString = queryParams.toString();
       const url = queryString 
-        ? `${process.env.NEXT_PUBLIC_BACKEND_API_URL || 'https://datacapture-backend.onrender.com'}${this.BASE_URL}?${queryString}`
-        : `${process.env.NEXT_PUBLIC_BACKEND_API_URL || 'https://datacapture-backend.onrender.com'}${this.BASE_URL}`;
+        ? `${BASE_URL}${this.BASE_URL}?${queryString}`
+        : `${BASE_URL}${this.BASE_URL}`;
 
       const response = await fetch(url, {
         headers: {
@@ -152,7 +153,7 @@ class CategoryService {
     try {
       const token = this.getToken();
       
-      const url = `${process.env.NEXT_PUBLIC_BACKEND_API_URL || 'https://datacapture-backend.onrender.com'}${this.BASE_URL}/${id}`;
+      const url = `${BASE_URL}${this.BASE_URL}/${id}`;
       
       const response = await fetch(url, {
         headers: {
@@ -200,7 +201,7 @@ class CategoryService {
 
       const token = this.getToken();
       
-      const url = `${process.env.NEXT_PUBLIC_BACKEND_API_URL || 'https://datacapture-backend.onrender.com'}${this.BASE_URL}`;
+      const url = `${BASE_URL}${this.BASE_URL}`;
       
       const response = await fetch(url, {
         method: 'POST',
@@ -244,7 +245,7 @@ class CategoryService {
     try {
       const token = this.getToken();
       
-      const url = `${process.env.NEXT_PUBLIC_BACKEND_API_URL || 'https://datacapture-backend.onrender.com'}${this.BASE_URL}/${id}`;
+      const url = `${BASE_URL}${this.BASE_URL}/${id}`;
       
       const response = await fetch(url, {
         method: 'PUT',
@@ -288,7 +289,7 @@ class CategoryService {
     try {
       const token = this.getToken();
       
-      const url = `${process.env.NEXT_PUBLIC_BACKEND_API_URL || 'https://datacapture-backend.onrender.com'}${this.BASE_URL}/${id}`;
+      const url = `${BASE_URL}${this.BASE_URL}/${id}`;
       
       const response = await fetch(url, {
         method: 'DELETE',
@@ -338,7 +339,7 @@ class CategoryService {
     try {
       const token = this.getToken();
       
-      const url = `${process.env.NEXT_PUBLIC_BACKEND_API_URL || 'https://datacapture-backend.onrender.com'}${this.BASE_URL}/${id}/status`;
+      const url = `${BASE_URL}${this.BASE_URL}/${id}/status`;
       
       const response = await fetch(url, {
         method: 'PUT',
@@ -394,7 +395,7 @@ class CategoryService {
       if (params.status) queryParams.append('status', params.status);
 
       const queryString = queryParams.toString();
-      const baseUrl = `${process.env.NEXT_PUBLIC_BACKEND_API_URL || 'https://datacapture-backend.onrender.com'}${this.BASE_URL}/export/${format}`;
+      const baseUrl = `${BASE_URL}${this.BASE_URL}/export/${format}`;
       const url = queryString ? `${baseUrl}?${queryString}` : baseUrl;
 
       const response = await fetch(url, {

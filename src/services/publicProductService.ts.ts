@@ -157,7 +157,7 @@ export interface CategoryListResponse {
   message: string;
 }
 
-const BASE_URL = process.env.NEXT_PUBLIC_BACKEND_API || 'https://datacapture-backend.onrender.com';
+import { BASE_URL } from '@/config/api';
 
 export class PublicProductService {
  

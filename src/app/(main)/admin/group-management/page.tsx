@@ -320,7 +320,7 @@ const GroupManagementPage = () => {
                                 openMemberModal(group.members || [], group.name);
                               }}
                             >
-                              View Members ({group.members?.length || 0})
+                              View Members ({group.memberIds?.length ?? group.members?.length ?? 0})
                             </button>
                           </td>
                           <td className="px-6 py-4">

@@ -8,12 +8,14 @@ import {
   Shield,
   ChevronDown,
   Landmark,
-  ShoppingBag, 
-  FileCheck, 
+  ShoppingBag,
+  FileCheck,
   FileText,
   Bell,
   Calendar,
-  Smartphone
+  Smartphone,
+  Package,
+  BookOpen
 } from 'lucide-react';
 import Link from 'next/link';
 import Image from 'next/image';
@@ -234,11 +236,23 @@ export const AdminSidebar: React.FC<SidebarProps> = ({ onShow, setShow }) => {
         },
       ]
     },
-    { 
-      id: 'booking', 
-      name: 'Booking Management', 
-      route: '/admin/booking', 
+    {
+      id: 'booking',
+      name: 'Booking Management',
+      route: '/admin/booking',
       icon: <Calendar className="w-6 h-6" />,
+    },
+    {
+      id: 'order-management',
+      name: 'Order Management',
+      route: '/admin/order-management',
+      icon: <Package className="w-6 h-6" />,
+    },
+    {
+      id: 'service-booking',
+      name: 'Service Booking',
+      route: '/admin/service-booking',
+      icon: <BookOpen className="w-6 h-6" />,
     },
    
     { 

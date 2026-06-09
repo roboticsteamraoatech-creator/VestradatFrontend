@@ -146,6 +146,7 @@ import Link from 'next/link';
 import Head from 'next/head';
 import { useMutation } from '@tanstack/react-query';
 import { useAuth } from '@/api/hooks/useAuth';
+import { useRouter } from 'next/navigation';
 import Image from 'next/image';
 
 // Interface for the full OTP metadata response
@@ -185,11 +186,13 @@ const ForgotPasswordSchema = Yup.object().shape({
 
 const ForgotPasswordPage = () => {
   const { client } = useAuth();
+  const router = useRouter();
   const [requestStatus, setRequestStatus] = useState<RequestStatus>({
     success: false,
     message: '',
   });
   const [apiError, setApiError] = useState<string | null>(null);
+  const [submittedEmail, setSubmittedEmail] = useState('');
 
   const forgotPasswordMutation = useMutation<
     ForgotPasswordResponse,
@@ -199,22 +202,29 @@ const ForgotPasswordPage = () => {
     mutationFn: async (email: string) => {
       const { data } = await client.post<ForgotPasswordResponse>(
         'auth/forgot-password',
-        { email }
+        { email: email.toLowerCase() }
       );
       return data;
     },
-    onSuccess: (data) => {
+    onSuccess: (data, email) => {
       setApiError(null);
       setRequestStatus({
         success: true,
-        message: data.message || 'Password reset link sent successfully!',
+        message: data.message || 'OTP sent to your email!',
       });
-      
-      // Handle OTP metadata if present
-      if (data.otpExpiresIn !== undefined && data.remainingAttempts !== undefined) {
-        // We can redirect to OTP verification page if needed
-        // For now, just showing success message
-      }
+
+      // Store otpData in sessionStorage so the reset-password page can use it
+      const otpData = {
+        otpExpiresIn: data.otpExpiresIn ?? 600,
+        maxAttempts: data.maxAttempts ?? 5,
+        remainingAttempts: data.remainingAttempts ?? 5,
+      };
+      sessionStorage.setItem('resetOtpData', JSON.stringify(otpData));
+
+      // Navigate to OTP entry screen
+      setTimeout(() => {
+        router.push(`/auth/reset-password?email=${encodeURIComponent(email.toLowerCase())}`);
+      }, 800);
     },
     onError: (error: ApiError) => {
       const message =
@@ -222,7 +232,7 @@ const ForgotPasswordPage = () => {
         error?.response?.data?.message ||
         error?.message ||
         'Failed to send reset email. Please try again.';
-      
+
       setApiError(message);
       setRequestStatus({
         success: false,

@@ -1,4 +1,5 @@
-import { NextResponse, NextRequest } from 'next/server';
+﻿import { NextResponse, NextRequest } from 'next/server';
+import { BASE_URL } from '@/config/api';
 
 // GET /api/super-admin/data-verification/verifications
 export async function GET(req: NextRequest) {
@@ -7,7 +8,7 @@ export async function GET(req: NextRequest) {
     const status = searchParams.get('status');
     
     // Call the actual backend API
-    const backendUrl = `https://datacapture-backend.onrender.com/api/super-admin/data-verification/verifications${status ? `?status=${status}` : ''}`;
+    const backendUrl = `${BASE_URL}/api/super-admin/data-verification/verifications${status ? `?status=${status}` : ''}`;
     
     const response = await fetch(backendUrl, {
       method: 'GET',

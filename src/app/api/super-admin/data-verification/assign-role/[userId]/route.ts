@@ -1,4 +1,5 @@
-import { NextResponse, NextRequest } from 'next/server';
+﻿import { NextResponse, NextRequest } from 'next/server';
+import { BASE_URL } from '@/config/api';
 
 // POST /api/super-admin/data-verification/assign-role/:userId
 export async function POST(
@@ -12,7 +13,7 @@ export async function POST(
     const { assign } = body;
     
     // Call the actual backend API
-    const backendUrl = `https://datacapture-backend.onrender.com/api/super-admin/data-verification/assign-role/${userId}`;
+    const backendUrl = `${BASE_URL}/api/super-admin/data-verification/assign-role/${userId}`;
     
     const response = await fetch(backendUrl, {
       method: 'POST',

@@ -1,4 +1,5 @@
-import { NextRequest, NextResponse } from 'next/server';
+﻿import { NextRequest, NextResponse } from 'next/server';
+import { BASE_URL } from '@/config/api';
 
 // PUT /api/admin/users/:userId/status - Update user status
 export async function PUT(
@@ -12,7 +13,7 @@ export async function PUT(
     console.log('🔄 Proxying user status update request to backend for user:', userId, body);
 
     // Get the backend URL from environment variables
-    const backendUrl = process.env.NEXT_PUBLIC_BACKEND_API || process.env.API_URL || process.env.NEXT_PUBLIC_API_URL || 'https://datacapture-backend.onrender.com';
+    const backendUrl = BASE_URL;
     
     // Transform the data format to match backend expectations
     const transformedBody = {

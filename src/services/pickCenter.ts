@@ -1,3 +1,4 @@
+﻿import { BASE_URL } from '@/config/api';
 
 
 // export interface IPickupCenter {
@@ -50,7 +51,7 @@
 
 //   private static getToken(): string | null {
 //     if (typeof window !== 'undefined') {
-//       return localStorage.getItem('token') || sessionStorage.getItem('token');
+//       return localStorage.getItem('userToken') || sessionStorage.getItem('userToken');
 //     }
 //     return null;
 //   }
@@ -107,7 +108,7 @@
 //       }
 
 //       const queryString = queryParams.toString();
-//       const baseUrl = `${process.env.NEXT_PUBLIC_BACKEND_API_URL || 'https://datacapture-backend.onrender.com'}${this.BASE_URL}`;
+//       const baseUrl = `${BASE_URL}${this.BASE_URL}`;
 //       const url = queryString ? `${baseUrl}?${queryString}` : baseUrl;
 
 //       const response = await fetch(url, {
@@ -180,7 +181,7 @@
 //     try {
 //       const token = this.getToken();
       
-//       const url = `${process.env.NEXT_PUBLIC_BACKEND_API_URL || 'https://datacapture-backend.onrender.com'}${this.BASE_URL}/${id}`;
+//       const url = `${BASE_URL}${this.BASE_URL}/${id}`;
       
 //       const response = await fetch(url, {
 //         headers: {
@@ -237,7 +238,7 @@
 
 //       const token = this.getToken();
       
-//       const url = `${process.env.NEXT_PUBLIC_BACKEND_API_URL || 'https://datacapture-backend.onrender.com'}${this.BASE_URL}`;
+//       const url = `${BASE_URL}${this.BASE_URL}`;
       
 //       const response = await fetch(url, {
 //         method: 'POST',
@@ -289,7 +290,7 @@
 
 //       const token = this.getToken();
       
-//       const url = `${process.env.NEXT_PUBLIC_BACKEND_API_URL || 'https://datacapture-backend.onrender.com'}${this.BASE_URL}/${id}`;
+//       const url = `${BASE_URL}${this.BASE_URL}/${id}`;
       
 //       const response = await fetch(url, {
 //         method: 'PUT',
@@ -336,7 +337,7 @@
 //     try {
 //       const token = this.getToken();
       
-//       const url = `${process.env.NEXT_PUBLIC_BACKEND_API_URL || 'https://datacapture-backend.onrender.com'}${this.BASE_URL}/${id}`;
+//       const url = `${BASE_URL}${this.BASE_URL}/${id}`;
       
 //       const response = await fetch(url, {
 //         method: 'DELETE',
@@ -388,7 +389,7 @@
 //     try {
 //       const token = this.getToken();
       
-//       const url = `${process.env.NEXT_PUBLIC_BACKEND_API_URL || 'https://datacapture-backend.onrender.com'}${this.BASE_URL}/${id}/status`;
+//       const url = `${BASE_URL}${this.BASE_URL}/${id}/status`;
       
 //       const response = await fetch(url, {
 //         method: 'PUT',
@@ -546,7 +547,7 @@ class PickupCenterService {
 
   private static getToken(): string | null {
     if (typeof window !== 'undefined') {
-      return localStorage.getItem('token') || sessionStorage.getItem('token');
+      return localStorage.getItem('userToken') || sessionStorage.getItem('userToken');
     }
     return null;
   }
@@ -612,7 +613,7 @@ class PickupCenterService {
       const timestamp = lastUpdated || Date.now().toString();
       
       const queryString = queryParams.toString();
-      const baseUrl = `${process.env.NEXT_PUBLIC_BACKEND_API_URL || 'https://datacapture-backend.onrender.com'}${this.BASE_URL}`;
+      const baseUrl = `${BASE_URL}${this.BASE_URL}`;
       const url = queryString 
         ? `${baseUrl}?${queryString}&_t=${timestamp}` 
         : `${baseUrl}?_t=${timestamp}`;
@@ -684,7 +685,7 @@ class PickupCenterService {
     try {
       const token = this.getToken();
       
-      const url = `${process.env.NEXT_PUBLIC_BACKEND_API_URL || 'https://datacapture-backend.onrender.com'}${this.BASE_URL}/${id}`;
+      const url = `${BASE_URL}${this.BASE_URL}/${id}`;
       
       const response = await fetch(url, {
         headers: {
@@ -737,7 +738,7 @@ class PickupCenterService {
 
       const token = this.getToken();
       
-      const url = `${process.env.NEXT_PUBLIC_BACKEND_API_URL || 'https://datacapture-backend.onrender.com'}${this.BASE_URL}`;
+      const url = `${BASE_URL}${this.BASE_URL}`;
       
       const response = await fetch(url, {
         method: 'POST',
@@ -790,7 +791,7 @@ class PickupCenterService {
 
       const token = this.getToken();
       
-      const url = `${process.env.NEXT_PUBLIC_BACKEND_API_URL || 'https://datacapture-backend.onrender.com'}${this.BASE_URL}/${id}`;
+      const url = `${BASE_URL}${this.BASE_URL}/${id}`;
       
       const response = await fetch(url, {
         method: 'PUT',
@@ -839,7 +840,7 @@ class PickupCenterService {
     try {
       const token = this.getToken();
       
-      const url = `${process.env.NEXT_PUBLIC_BACKEND_API_URL || 'https://datacapture-backend.onrender.com'}${this.BASE_URL}/${id}`;
+      const url = `${BASE_URL}${this.BASE_URL}/${id}`;
       
       const response = await fetch(url, {
         method: 'DELETE',
@@ -893,7 +894,7 @@ class PickupCenterService {
     try {
       const token = this.getToken();
       
-      const url = `${process.env.NEXT_PUBLIC_BACKEND_API_URL || 'https://datacapture-backend.onrender.com'}${this.BASE_URL}/${id}/status`;
+      const url = `${BASE_URL}${this.BASE_URL}/${id}/status`;
       
       const response = await fetch(url, {
         method: 'PUT',

@@ -1,4 +1,4 @@
-"use client";
+﻿"use client";
 
 import { useState, useEffect } from 'react';
 import { Lock, ArrowLeft, AlertCircle, Clock, Calendar as CalendarIcon, User, MapPin, CheckCircle, Plus, Trash2, HelpCircle } from 'lucide-react';
@@ -6,7 +6,7 @@ import { useRouter } from 'next/navigation';
 import { useAuth } from '@/api/hooks/useAuth';
 import OrderService from '@/services/OrderService';
 
-const BASE_URL = 'https://datacapture-backend.onrender.com';
+import { BASE_URL } from '@/config/api';
 
 interface TimeSlot {
   datetime: string;

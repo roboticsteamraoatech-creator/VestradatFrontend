@@ -1,19 +1,41 @@
 "use client";
 
-import React, { useState, useEffect } from 'react';
+import React, { useState, useEffect, useCallback } from 'react';
 import { MeasurementTopNav } from '@/app/components/MeasurementTopNav';
 import { useRouter } from 'next/navigation';
 import Image from 'next/image';
 import { AdminMeasurementService } from '@/services/AdminMeasurementService';
 import UserSubscriptionService from '@/services/UserSubscriptionService';
 import { toast } from '@/app/components/hooks/use-toast';
-import { User, Users, BarChart3, UserCheck, Key, Archive, XCircle } from 'lucide-react';
+import { User, Users, BarChart3, UserCheck, Key, Archive, XCircle, Bell, ShoppingBag, Building, CreditCard, Ticket, Shield, Briefcase, CheckSquare, MapPin, Settings } from 'lucide-react';
 import { useAuthContext } from '@/AuthContext';
+
+import { BASE_URL } from '@/config/api';
+
+const QUICK_ACTIONS = [
+  { label: 'Manage Roles', icon: Shield, route: '/admin/role-management', color: 'bg-purple-50 text-purple-600' },
+  { label: 'Manage Groups', icon: Users, route: '/admin/group-management', color: 'bg-blue-50 text-blue-600' },
+  { label: 'Measurements', icon: BarChart3, route: '/admin/body-measurement', color: 'bg-green-50 text-green-600' },
+  { label: 'One-Time Codes', icon: Key, route: '/admin/users/one-time-codes', color: 'bg-yellow-50 text-yellow-600' },
+  { label: 'Gallery', icon: ShoppingBag, route: '/admin/gallery', color: 'bg-pink-50 text-pink-600' },
+  { label: 'Orders', icon: Briefcase, route: '/admin/order-management', color: 'bg-orange-50 text-orange-600' },
+  { label: 'Bank Details', icon: CreditCard, route: '/admin/bank-details', color: 'bg-indigo-50 text-indigo-600' },
+  { label: 'Remittances', icon: Ticket, route: '/admin/remittance', color: 'bg-teal-50 text-teal-600' },
+  { label: 'Settlements', icon: CheckSquare, route: '/admin/settlement/provider-settlement', color: 'bg-cyan-50 text-cyan-600' },
+  { label: 'Bookings', icon: Settings, route: '/admin/booking', color: 'bg-violet-50 text-violet-600' },
+  { label: 'All Bookings', icon: Bell, route: '/admin/booking-management', color: 'bg-rose-50 text-rose-600' },
+  { label: 'Completed Tasks', icon: CheckSquare, route: '/admin/completed-tasks', color: 'bg-emerald-50 text-emerald-600' },
+  { label: 'Org Profile', icon: Building, route: '/admin/org-profile', color: 'bg-amber-50 text-amber-600' },
+  { label: 'Subscription', icon: Key, route: '/admin/subscription', color: 'bg-fuchsia-50 text-fuchsia-600' },
+  { label: 'Service Providers', icon: User, route: '/admin/gallery/service-provider-assignment', color: 'bg-sky-50 text-sky-600' },
+  { label: 'My Users', icon: Users, route: '/admin/users', color: 'bg-lime-50 text-lime-600' },
+];
 
 const AdminDashboard = () => {
   const router = useRouter();
-  const { user } = useAuthContext();
+  const { user, token } = useAuthContext();
   const [loading, setLoading] = useState(true);
+  const [unreadCount, setUnreadCount] = useState(0);
   const [stats, setStats] = useState({
     totalUsers: 0,
     activeUsers: 0,
@@ -38,6 +60,17 @@ const AdminDashboard = () => {
     hips: '98 cm',
     legs: '88 cm'
   };
+
+  // Fetch unread notification count
+  useEffect(() => {
+    if (!token) return;
+    fetch(`${BASE_URL}/api/admin/notifications/unread-count`, {
+      headers: { Authorization: `Bearer ${token}` },
+    })
+      .then(r => r.json())
+      .then(d => setUnreadCount(d.unreadCount || d.data?.unreadCount || 0))
+      .catch(() => {});
+  }, [token]);
 
   // Fixed useEffect – no infinite loading
   useEffect(() => {
@@ -145,6 +178,37 @@ const AdminDashboard = () => {
               </div>
             </div>
           ))}
+        </div>
+
+        {/* Quick Actions */}
+        <div className="mt-10">
+          <div className="flex items-center justify-between mb-4">
+            <span className="manrope text-xs font-semibold uppercase tracking-widest text-gray-400">Quick Actions</span>
+            {unreadCount > 0 && (
+              <button
+                onClick={() => router.push('/admin/notifications')}
+                className="flex items-center gap-1.5 text-xs text-[#5D2A8B] hover:underline"
+              >
+                <Bell className="w-3.5 h-3.5" />
+                {unreadCount} unread
+              </button>
+            )}
+          </div>
+          <div className="grid grid-cols-2 sm:grid-cols-3 lg:grid-cols-4 gap-px bg-gray-100 border border-gray-100 rounded-xl overflow-hidden">
+            {QUICK_ACTIONS.map((action) => {
+              const Icon = action.icon;
+              return (
+                <button
+                  key={action.route}
+                  onClick={() => router.push(action.route)}
+                  className="flex items-center gap-3 px-5 py-4 bg-white hover:bg-gray-50 text-left w-full"
+                >
+                  <Icon className="w-4 h-4 text-gray-400 flex-shrink-0" />
+                  <span className="manrope text-sm font-medium text-gray-700 leading-snug">{action.label}</span>
+                </button>
+              );
+            })}
+          </div>
         </div>
       </div>
     </div>

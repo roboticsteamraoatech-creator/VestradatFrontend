@@ -1,4 +1,4 @@
-// This file has been modified to redirect organizations to the subscription page after login
+﻿// This file has been modified to redirect organizations to the subscription page after login
 "use client";
 
 import { useState } from "react";
@@ -12,6 +12,7 @@ import { toast } from "@/app/components/hooks/use-toast";
 import { routes } from "@/services/apiRoutes";
 import axios from 'axios';
 import UserSubscriptionService from '@/services/UserSubscriptionService';
+import { BASE_URL } from '@/config/api';
 
 interface FormValues {
   email: string
@@ -38,7 +39,7 @@ export default function LoginPage() {
 
   // Create axios instance for login
   const client = axios.create({
-    baseURL: process.env.NEXT_PUBLIC_BACKEND_API || 'https://datacapture-backend.onrender.com',
+    baseURL: BASE_URL,
     headers: {
       'Content-Type': 'application/json',
     },
@@ -55,7 +56,7 @@ export default function LoginPage() {
   const { mutate: submitMutate, isPending } = useMutation({
     mutationFn: async (values: { email: string; password: string }) => {
       const payload = {
-        email: values.email,
+        email: values.email.toLowerCase(),
         password: values.password,
       }
       
@@ -63,7 +64,7 @@ export default function LoginPage() {
       
       // Use axios directly instead of the client from useAuth
       const response = await client.post(routes.login(), payload, {
-        baseURL: process.env.NEXT_PUBLIC_BACKEND_API || 'https://datacapture-backend.onrender.com',
+        baseURL: BASE_URL,
         headers: {
           'Content-Type': 'application/json',
         },

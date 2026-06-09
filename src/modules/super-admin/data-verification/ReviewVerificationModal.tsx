@@ -110,7 +110,7 @@ const ReviewVerificationModal = ({
   const fetchVerificationDetails = async () => {
     try {
       setLoading(true);
-      const token = localStorage.getItem('token') || '';
+      const token = localStorage.getItem('userToken') || '';
       
       // Validate token before making request
       if (!token || token === 'undefined' || token === 'null') {
@@ -170,7 +170,7 @@ const ReviewVerificationModal = ({
       setSubmitting(true);
       
       // Get token from localStorage
-      const token = localStorage.getItem('token') || '';
+      const token = localStorage.getItem('userToken') || '';
       
       // Validate token exists
       if (!token || token === 'undefined' || token === 'null') {
