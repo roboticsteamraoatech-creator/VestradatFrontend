@@ -11,17 +11,18 @@ export default function RootLayout({
 }: {
   children: React.ReactNode;
 }) {
-  const [showSidebar, setShowSidebar] = useState(false); // Start with sidebar closed on mobile
+  const [showSidebar, setShowSidebar] = useState(false);
 
   return (
     <SubscriptionGuard>
       <NotificationProvider>
-        <div className="min-h-screen relative">
-          
-          <AdminSidebar onShow={showSidebar} setShow={setShowSidebar}  />
-          
-          
-          <div className="relative w-full pt-0 md:pt-0">
+        <div className="min-h-screen bg-gray-50">
+          <AdminSidebar onShow={showSidebar} setShow={setShowSidebar} />
+          <div
+            className={`transition-[margin-left] duration-300 ease-in-out ${
+              showSidebar ? "md:ml-[328px]" : "md:ml-[72px]"
+            }`}
+          >
             {children}
           </div>
         </div>

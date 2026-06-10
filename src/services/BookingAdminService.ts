@@ -396,6 +396,39 @@ class BookingAdminService {
       data
     );
   }
+
+  /** GET /api/service-provider-assignment/detailed */
+  static async getDetailedServiceProviders(): Promise<any> {
+    return HttpService.get<any>('/api/service-provider-assignment/detailed');
+  }
+
+  /** POST /api/admin/booking/validate-location */
+  static async validateLocation(payload: {
+    locationType: string;
+    address?: string;
+    whatsappLocationUrl?: string;
+    customerEmail?: string;
+  }): Promise<{ success: boolean; message?: string }> {
+    return HttpService.post<{ success: boolean; message?: string }>(
+      '/api/admin/booking/validate-location',
+      payload
+    );
+  }
+
+  /** GET /api/admin/booking/services/:serviceId/sub-services */
+  static async getSubServices(serviceId: string): Promise<any> {
+    return HttpService.get<any>(`/api/admin/booking/services/${serviceId}/sub-services`);
+  }
+
+  /** POST /api/admin/booking/calculate-pricing */
+  static async calculatePricing(payload: {
+    serviceId: string;
+    bookedForPersons: Array<{ name: string; selectedSubServices: Array<{ subServiceId: string; name: string; price: number }> }>;
+    paymentType: 'upfront' | 'full';
+    upfrontPercentage: number;
+  }): Promise<any> {
+    return HttpService.post<any>('/api/admin/booking/calculate-pricing', payload);
+  }
 }
 
 export default BookingAdminService;

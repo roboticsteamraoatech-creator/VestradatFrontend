@@ -98,7 +98,7 @@ const NotificationsPage = () => {
       <MeasurementTopNav title="Notification Center" />
 
       {/* Main Content */}
-      <div className="px-4 pt-4 md:absolute md:w-[958px] md:top-[271px] md:left-[401px]">
+      <div className="px-4 md:px-6 py-4">
         {/* Header */}
         <div className="flex items-center justify-between mb-6">
           <div className="flex items-center gap-4">

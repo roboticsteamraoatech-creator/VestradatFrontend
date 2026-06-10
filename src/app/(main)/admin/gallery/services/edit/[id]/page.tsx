@@ -273,7 +273,7 @@ export default function EditServicePage() {
           name: sub.name,
           description: sub.description,
           price: sub.price,
-          ...(sub.subPlatformUniqueCode && { subPlatformUniqueCode: sub.subPlatformUniqueCode }),
+          subPlatformUniqueCode: sub.subPlatformUniqueCode || `SUB-${Date.now()}-${Math.random().toString(36).substr(2, 9)}`,
           ...(sub.uploadPicture && { uploadPicture: sub.uploadPicture })
         }));
       }
@@ -345,7 +345,7 @@ export default function EditServicePage() {
   }
 
   return (
-    <div className="ml-0 md:ml-[350px] pt-8 md:pt-8 p-4 md:p-8 min-h-screen bg-gray-50">
+    <div className="pt-8 p-4 md:p-8 min-h-screen bg-gray-50">
       <div className="max-w-7xl mx-auto py-6 px-4">
         {/* Header */}
         <div className="mb-6 flex items-center justify-between">

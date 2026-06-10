@@ -126,13 +126,7 @@ export const AdminSidebar: React.FC<SidebarProps> = ({ onShow, setShow }) => {
     //   route: '/admin/mobile-app-stats', 
     //   icon: <Smartphone className="w-6 h-6" />,
     // },
-    { 
-      id: 'notifications', 
-      name: 'Notifications', 
-      route: '/admin/notifications', 
-      icon: <Bell className="w-6 h-6" />,
-    },
-    { 
+    {
       id: 'body-measurement', 
       name: 'Body Measurement', 
       route: '/admin/body-measurement', 
@@ -216,19 +210,14 @@ export const AdminSidebar: React.FC<SidebarProps> = ({ onShow, setShow }) => {
       subItems: [
         {
           id: 'gallery-items',
-          name: 'Gallery Items',
+          name: 'Gallery Management',
           route: '/admin/gallery'
         },
         {
-          id: 'services',
-          name: 'Services',
-          route: '/admin/gallery/services'
+          id: 'gallery-org-items',
+          name: 'Services & Products',
+          route: '/admin/gallery/items'
         },
-        // {
-        //   id: 'service-provider',
-        //   name: 'Service Provider',
-        //   route: '/admin/gallery/service-provider'
-        // },
         {
           id: 'service-provider-assignment',
           name: 'Service Provider Assignment',
@@ -406,240 +395,181 @@ export const AdminSidebar: React.FC<SidebarProps> = ({ onShow, setShow }) => {
         />
       )}
       
-      <div 
+      {/* Sidebar — full when onShow=true, mini icons-only on desktop when onShow=false */}
+      <div
         ref={sidebarRef}
-        className={`${toggleSidebar()} sidebar-container bg-[#FFFFFF] fixed overflow-y-auto shadow-sm flex flex-col`}
+        className={`${onShow ? 'block' : 'hidden md:flex md:flex-col'} sidebar-container bg-[#FFFFFF] fixed shadow-sm`}
         style={{
-          width: '328px',
+          width: onShow ? '328px' : '72px',
           height: '100vh',
           top: '0',
           left: '0',
           borderRadius: '0 20px 20px 0',
           boxShadow: '0px 2px 8px 0px rgba(0, 0, 0, 0.1)',
-          zIndex: 999
+          zIndex: 999,
+          transition: 'width 300ms ease',
+          overflowY: onShow ? 'auto' : 'visible',
+          overflowX: onShow ? 'hidden' : 'visible',
         }}
       >
-        {/* Header with Logo and Close Button */}
-        <div 
-          className="sidebar-logo-container flex items-center"
-          style={{
-            width: '252px',
-            height: '48px',
-            justifyContent: 'space-between',
-            top: '43px',
-            left: '38px',
-            position: 'absolute'
-          }}
-        >
-          <div className="flex items-center">
-            <Image 
-              src="/Group 1.png" 
-              alt="Brand Logo" 
-              width={55} 
-              height={48}
-              className="object-contain"
-            />
-          </div>
-          
-          <button
-            type="button"
-            onClick={() => setShow(!onShow)}
-            className="cursor-pointer hover:opacity-80 transition-opacity"
-          >
-            <Image 
-              src="/Panel Left Close Streamline Lucide Line.png" 
-              alt="Close Panel" 
-              width={24} 
-              height={24}
-              className="object-contain"
-            />
-          </button>
-        </div>
+        {onShow ? (
+          /* ── FULL SIDEBAR ── */
+          <>
+            {/* Header with Logo and Close Button */}
+            <div
+              className="sidebar-logo-container flex items-center"
+              style={{
+                width: '252px',
+                height: '48px',
+                justifyContent: 'space-between',
+                top: '43px',
+                left: '38px',
+                position: 'absolute'
+              }}
+            >
+              <div className="flex items-center">
+                <Image src="/assets/vetra.png" alt="Vestradat Logo" width={120} height={40} className="object-contain" />
+              </div>
+              <button type="button" onClick={() => setShow(false)} className="cursor-pointer hover:opacity-80 transition-opacity">
+                <Image src="/Panel Left Close Streamline Lucide Line.png" alt="Close Panel" width={24} height={24} className="object-contain" />
+              </button>
+            </div>
 
-        <nav 
-          className="sidebar-nav-container flex flex-col justify-between" 
-          style={{ 
-            marginTop: '120px',
-            height: 'calc(100vh - 180px)',
-            paddingBottom: '20px'
-          }}
-        >
-          <div className="menu-item-container flex flex-col" style={{ gap: '12px' }}>
-            {/* Admin Menu Items */}
-            {adminMenuItems.map((item: MenuItem) => (
-              <div key={item.id}>
-                {item.route && !item.subItems ? (
-                  // Menu item with route (no submenu)
-                  <Link href={item.route}>
-                    <div 
-                      className={`manrope flex items-center rounded-lg cursor-pointer hover:bg-gray-50 transition-all duration-200 ${
-                        isActive(item.route) ? 'bg-[#5D2A8B]' : ''
-                      }`}
-                      style={{
-                        width: '275px',
-                        height: '71px',
-                        padding: '0 23px',
-                        marginLeft: '15px'
-                      }}
-                    >
-                      <div 
-                        className="flex items-center w-full"
-                        style={{
-                          gap: '12px'
-                        }}
-                      >
-                        <div className="w-6 h-6 flex items-center justify-center flex-shrink-0" style={{ filter: getIconFilter(item.route) }}>
-                          {item.icon}
-                        </div>
-                        <span 
-                          className="manrope whitespace-nowrap overflow-hidden text-ellipsis"
-                          style={{
-                            fontWeight: 500,
-                            fontSize: '20px',
-                            lineHeight: '100%',
-                            color: getTextColor(item.route),
-                            flex: 1,
-                            minWidth: 0
-                          }}
+            <nav
+              className="sidebar-nav-container flex flex-col justify-between"
+              style={{ marginTop: '120px', height: 'calc(100vh - 180px)', paddingBottom: '20px' }}
+            >
+              <div className="menu-item-container flex flex-col" style={{ gap: '12px' }}>
+                {adminMenuItems.map((item: MenuItem) => (
+                  <div key={item.id}>
+                    {item.route && !item.subItems ? (
+                      <Link href={item.route}>
+                        <div
+                          className={`manrope flex items-center rounded-lg cursor-pointer hover:bg-gray-50 transition-all duration-200 ${isActive(item.route) ? 'bg-[#5D2A8B]' : ''}`}
+                          style={{ width: '275px', height: '71px', padding: '0 23px', marginLeft: '15px' }}
                         >
-                          {item.name}
-                        </span>
-                      </div>
-                    </div>
-                  </Link>
-                ) : (
-                  // Menu item with submenu
-                  <div className="relative">
-                    <div 
-                      className={`manrope flex items-center rounded-lg cursor-pointer hover:bg-gray-50 transition-all duration-200 ${
-                        isSubmenuActive(item.subItems) ? 'bg-[#5D2A8B]' : ''
-                      }`}
-                      style={{
-                        width: '275px',
-                        height: '71px',
-                        padding: '0 23px',
-                        marginLeft: '15px'
-                      }}
-                      onClick={() => toggleSubmenu(item.id)}
-                    >
-                      <div 
-                        className="flex items-center w-full"
-                        style={{
-                          gap: '12px'
-                        }}
-                      >
-                        <div className="w-6 h-6 flex items-center justify-center flex-shrink-0" style={{ filter: isSubmenuActive(item.subItems) ? 'brightness(0) invert(1)' : 'none' }}>
-                          {item.icon}
-                        </div>
-                        <span 
-                          className="manrope whitespace-nowrap overflow-hidden text-ellipsis"
-                          style={{
-                            fontWeight: 500,
-                            fontSize: '20px',
-                            lineHeight: '100%',
-                            color: isSubmenuActive(item.subItems) ? '#FFFFFF' : '#6E6E6EB2',
-                            flex: 1,
-                            minWidth: 0
-                          }}
-                        >
-                          {item.name}
-                        </span>
-                        <ChevronDown 
-                          className={`w-5 h-5 transition-transform duration-200 ${
-                            expandedMenu === item.id ? 'rotate-180' : ''
-                          }`}
-                          style={{ 
-                            filter: isSubmenuActive(item.subItems) ? 'brightness(0) invert(1)' : 'none',
-                            color: isSubmenuActive(item.subItems) ? '#FFFFFF' : '#6E6E6EB2'
-                          }}
-                        />
-                      </div>
-                    </div>
-                    
-                    {/* Submenu items - only show if this menu is expanded */}
-                    {expandedMenu === item.id && item.subItems && (
-                      <div className="ml-8 mt-2 flex flex-col gap-2" style={{ width: '230px', marginLeft: '40px' }}>
-                        {item.subItems.map((subItem: SubMenuItem) => (
-                          <Link href={subItem.route} key={subItem.id}>
-                            <div 
-                              className={`manrope flex items-center rounded-lg cursor-pointer hover:bg-gray-50 transition-all duration-200 ${
-                                isActive(subItem.route) ? 'bg-[#5D2A8B]' : 'bg-gray-100'
-                              }`}
-                              style={{
-                                width: '230px',
-                                height: '45px',
-                                padding: '0 15px',
-                                marginLeft: '10px',
-                                borderRadius: '8px',
-                                margin: '2px 0'
-                              }}
-                            >
-                              <span 
-                                className="manrope whitespace-nowrap overflow-hidden text-ellipsis"
-                                style={{
-                                  fontWeight: 400,
-                                  fontSize: '15px',
-                                  lineHeight: '100%',
-                                  color: isActive(subItem.route) ? '#FFFFFF' : '#6E6E6EB2',
-                                  flex: 1,
-                                  minWidth: 0
-                                }}
-                              >
-                                {subItem.name}
-                              </span>
+                          <div className="flex items-center w-full" style={{ gap: '12px' }}>
+                            <div className="w-6 h-6 flex items-center justify-center flex-shrink-0" style={{ filter: getIconFilter(item.route) }}>
+                              {item.icon}
                             </div>
-                          </Link>
-                        ))}
+                            <span className="manrope whitespace-nowrap overflow-hidden text-ellipsis" style={{ fontWeight: 500, fontSize: '20px', lineHeight: '100%', color: getTextColor(item.route), flex: 1, minWidth: 0 }}>
+                              {item.name}
+                            </span>
+                          </div>
+                        </div>
+                      </Link>
+                    ) : (
+                      <div className="relative">
+                        <div
+                          className={`manrope flex items-center rounded-lg cursor-pointer hover:bg-gray-50 transition-all duration-200 ${isSubmenuActive(item.subItems) ? 'bg-[#5D2A8B]' : ''}`}
+                          style={{ width: '275px', height: '71px', padding: '0 23px', marginLeft: '15px' }}
+                          onClick={() => toggleSubmenu(item.id)}
+                        >
+                          <div className="flex items-center w-full" style={{ gap: '12px' }}>
+                            <div className="w-6 h-6 flex items-center justify-center flex-shrink-0" style={{ filter: isSubmenuActive(item.subItems) ? 'brightness(0) invert(1)' : 'none' }}>
+                              {item.icon}
+                            </div>
+                            <span className="manrope whitespace-nowrap overflow-hidden text-ellipsis" style={{ fontWeight: 500, fontSize: '20px', lineHeight: '100%', color: isSubmenuActive(item.subItems) ? '#FFFFFF' : '#6E6E6EB2', flex: 1, minWidth: 0 }}>
+                              {item.name}
+                            </span>
+                            <ChevronDown
+                              className={`w-5 h-5 transition-transform duration-200 ${expandedMenu === item.id ? 'rotate-180' : ''}`}
+                              style={{ filter: isSubmenuActive(item.subItems) ? 'brightness(0) invert(1)' : 'none', color: isSubmenuActive(item.subItems) ? '#FFFFFF' : '#6E6E6EB2' }}
+                            />
+                          </div>
+                        </div>
+                        {expandedMenu === item.id && item.subItems && (
+                          <div className="mt-2 flex flex-col gap-2" style={{ width: '230px', marginLeft: '40px' }}>
+                            {item.subItems.map((subItem: SubMenuItem) => (
+                              <Link href={subItem.route} key={subItem.id}>
+                                <div
+                                  className={`manrope flex items-center rounded-lg cursor-pointer hover:bg-gray-50 transition-all duration-200 ${isActive(subItem.route) ? 'bg-[#5D2A8B]' : 'bg-gray-100'}`}
+                                  style={{ width: '230px', height: '45px', padding: '0 15px', borderRadius: '8px', margin: '2px 0' }}
+                                >
+                                  <span className="manrope whitespace-nowrap overflow-hidden text-ellipsis" style={{ fontWeight: 400, fontSize: '15px', lineHeight: '100%', color: isActive(subItem.route) ? '#FFFFFF' : '#6E6E6EB2', flex: 1, minWidth: 0 }}>
+                                    {subItem.name}
+                                  </span>
+                                </div>
+                              </Link>
+                            ))}
+                          </div>
+                        )}
                       </div>
                     )}
                   </div>
-                )}
+                ))}
               </div>
-            ))}
-          </div>
 
-          {/* Logout Module - Positioned at the bottom */}
-          <div 
-            className="sidebar-logout mt-auto"
-            style={{
-              display: 'flex',
-              alignItems: 'center',
-              paddingTop: '30px',
-              marginLeft: '38px'
-            }}
-          >
-            <button 
-              className="manrope flex items-center hover:opacity-80 cursor-pointer"
-              style={{
-                gap: '12px',
-                background: 'none',
-                border: 'none',
-                padding: 0
-              }}
-              onClick={handleLogoutClick}
+              <div className="sidebar-logout mt-auto" style={{ display: 'flex', alignItems: 'center', paddingTop: '30px', marginLeft: '38px' }}>
+                <button className="manrope flex items-center hover:opacity-80 cursor-pointer" style={{ gap: '12px', background: 'none', border: 'none', padding: 0 }} onClick={handleLogoutClick}>
+                  <LogOut className="w-6 h-6 text-[#FF6161]" />
+                  <span className="manrope" style={{ fontWeight: 500, fontSize: '20px', lineHeight: '100%', color: '#FF6161' }}>Logout</span>
+                </button>
+              </div>
+            </nav>
+          </>
+        ) : (
+          /* ── MINI SIDEBAR (desktop only) ── */
+          <div className="flex flex-col items-center w-full h-full py-5 gap-1">
+            {/* Expand button */}
+            <button
+              type="button"
+              onClick={() => setShow(true)}
+              className="w-11 h-11 flex items-center justify-center hover:bg-gray-100 rounded-xl cursor-pointer mb-3 transition-colors"
             >
-              <LogOut className="w-6 h-6 text-[#FF6161]" />
-              <span 
-                className="manrope"
-                style={{
-                  fontWeight: 500,
-                  fontSize: '20px',
-                  lineHeight: '100%',
-                  color: '#FF6161'
-                }}
-              >
+              <Menu className="w-5 h-5 text-gray-500" />
+            </button>
+
+            {/* Icon-only nav items */}
+            {adminMenuItems.map((item: MenuItem) => {
+              const route = item.route ?? item.subItems?.[0]?.route ?? '#';
+              const active = item.route ? isActive(item.route) : isSubmenuActive(item.subItems);
+              return (
+                <div key={item.id} className="group relative w-full flex justify-center">
+                  {item.route && !item.subItems ? (
+                    <Link href={item.route}>
+                      <div className={`w-11 h-11 flex items-center justify-center rounded-xl transition-colors cursor-pointer ${active ? 'bg-[#5D2A8B]' : 'hover:bg-gray-100'}`}>
+                        <div className="w-5 h-5 flex items-center justify-center" style={{ filter: active ? 'brightness(0) invert(1)' : 'none' }}>
+                          {item.icon}
+                        </div>
+                      </div>
+                    </Link>
+                  ) : (
+                    <button type="button" onClick={() => setShow(true)} className={`w-11 h-11 flex items-center justify-center rounded-xl transition-colors cursor-pointer ${active ? 'bg-[#5D2A8B]' : 'hover:bg-gray-100'}`}>
+                      <div className="w-5 h-5 flex items-center justify-center" style={{ filter: active ? 'brightness(0) invert(1)' : 'none' }}>
+                        {item.icon}
+                      </div>
+                    </button>
+                  )}
+                  {/* Tooltip */}
+                  <span className="absolute left-full ml-3 top-1/2 -translate-y-1/2 px-2.5 py-1.5 bg-gray-800 text-white text-xs font-medium rounded-lg opacity-0 group-hover:opacity-100 pointer-events-none z-[1000] whitespace-nowrap transition-opacity duration-150 shadow-lg">
+                    {item.name}
+                  </span>
+                </div>
+              );
+            })}
+
+            <div className="flex-1" />
+
+            {/* Logout icon */}
+            <div className="group relative w-full flex justify-center pb-2">
+              <button onClick={handleLogoutClick} className="w-11 h-11 flex items-center justify-center hover:bg-red-50 rounded-xl transition-colors cursor-pointer">
+                <LogOut className="w-5 h-5 text-[#FF6161]" />
+              </button>
+              <span className="absolute left-full ml-3 top-1/2 -translate-y-1/2 px-2.5 py-1.5 bg-gray-800 text-white text-xs font-medium rounded-lg opacity-0 group-hover:opacity-100 pointer-events-none z-[1000] whitespace-nowrap transition-opacity duration-150 shadow-lg">
                 Logout
               </span>
-            </button>
+            </div>
           </div>
-        </nav>
+        )}
       </div>
 
+      {/* Mobile-only hamburger — hidden on desktop since mini sidebar is always visible */}
       {!onShow && (
         <MenuBtn
-          positioning="fixed left-4 z-[1000]"
+          positioning="fixed left-4 top-4 z-[1000] md:hidden"
           icon={<Menu className="h-6 w-6 text-gray-600 hover:text-gray-900" />}
-          onClick={() => setShow(!onShow)}
+          onClick={() => setShow(true)}
           toggleLeftPadding={toggleLeftPadding()}
         />
       )}

@@ -1,859 +1,747 @@
+'use client';
 
-"use client";
+import React, { useState, useEffect, useRef } from 'react';
+import { useRouter, useParams } from 'next/navigation';
+import {
+  ArrowLeft,
+  Image as ImageIcon,
+  Video,
+  Upload,
+  X,
+  ChevronDown,
+  CheckCircle,
+  AlertCircle,
+  Loader2,
+} from 'lucide-react';
+import { GalleryService } from '@/services/gallery-sub-service';
+import { HttpService } from '@/services/HttpService';
 
-import { useState, useEffect } from "react";
-import { useRouter, useParams } from "next/navigation";
-import { GalleryService } from "@/services/gallery-sub-service";
-import { HttpService } from "@/services/HttpService";
-import { ArrowLeft, Save } from 'lucide-react';
+// ─── Types ────────────────────────────────────────────────────────────────────
 
-interface Category {
-  id: string;
-  name: string;
-}
-
-interface Industry {
-  id: string;
-  name: string;
-}
-
-
-interface ApiSubService {
-  name: string;
-  description: string;
-  price: number;
-  subPlatformUniqueCode?: string;
-  uploadPicture?: string;
-  file?: File;
-  previewUrl?: string;
-}
-
-
-interface UpdateServicePayload {
-  name?: string;
-  description?: string;
-  categoryId?: string;
-  industryId?: string;
-  locationIndex?: number;
-  sku?: string;
-  upc?: string;
-  producer?: string;
-  totalAvailableServiceProviders?: number;
-  priceInDollars?: number;
-  discountPercentage?: number;
-  platformChargePercentage?: number;
-  upfrontPaymentPercentage?: number;
-  visibilityToPublic?: boolean;
-  notes?: string;
-  subServices?: Array<{
-    name: string;
-    description: string;
-    price: number;
-    subPlatformUniqueCode?: string;
-    uploadPicture?: string;
-  }>;
-  availability?: {
-    type: string;
-    startDate: string;
-    startTime: string;
-    endDate: string;
-    endTime: string;
-  };
-}
-
-interface GalleryItem {
-  _id: string;
-  name: string;
-  description: string;
-  categoryId: string;
-  industryId: string;
+interface ApiCategory { id?: string; _id?: string; name: string }
+interface ApiLocation {
   locationIndex: number;
-  itemType?: 'product' | 'service';
-  sku?: string;
-  upc?: string;
-  producer?: string;
-  totalAvailableServiceProviders?: number;
-  priceInDollars: number;
-  discountPercentage: number;
-  platformChargePercentage: number;
-  upfrontPaymentPercentage: number;
-  upfrontPaymentAmount: number;
-  actualAmount: number;
-  hasSubServices: boolean;
-  subServiceCount: number;
-  subServices: ApiSubService[];
-  availability?: {
-    type: string;
-    startDate: string;
-    startTime: string;
-    endDate: string;
-    endTime: string;
-  };
-  visibilityToPublic: boolean;
-  notes?: string;
-  imageUrl?: string;
-  categoryName?: string;
-  industryName?: string;
+  brandName: string;
+  cityRegion: string;
+  status: string;
+}
+interface MediaUsage {
+  images: { current: number; max: number; remaining: number };
+  videos: { current: number; max: number; remaining: number };
+  verified: boolean;
 }
 
-export default function EditServicePage() {
+// ─── Helpers ──────────────────────────────────────────────────────────────────
+
+const getToken = () =>
+  typeof window !== 'undefined'
+    ? localStorage.getItem('userToken') || sessionStorage.getItem('userToken') || ''
+    : '';
+
+const formatCurrency = (n: number) =>
+  new Intl.NumberFormat('en-NG', { style: 'currency', currency: 'NGN', minimumFractionDigits: 0 }).format(n);
+
+const UsageBar = ({ label, current, max }: { label: string; current: number; max: number }) => {
+  const pct = max > 0 ? Math.min((current / max) * 100, 100) : 0;
+  const colour = pct >= 90 ? 'bg-red-500' : pct >= 70 ? 'bg-yellow-400' : 'bg-green-500';
+  return (
+    <div className="flex items-center gap-3 text-xs text-gray-600">
+      <span className="w-12 shrink-0">{label}</span>
+      <div className="flex-1 h-1.5 bg-gray-200 rounded-full overflow-hidden">
+        <div className={`h-full rounded-full ${colour}`} style={{ width: `${pct}%` }} />
+      </div>
+      <span className="shrink-0">{current}/{max}</span>
+    </div>
+  );
+};
+
+// ─── Page ─────────────────────────────────────────────────────────────────────
+
+export default function EditGalleryItemPage() {
   const router = useRouter();
   const params = useParams();
-  const id = params.id as string;
-  
-  const [loading, setLoading] = useState(true);
-  const [submitting, setSubmitting] = useState(false);
-  const [error, setError] = useState<string | null>(null);
-  const [success, setSuccess] = useState(false);
-  
-  const [categories, setCategories] = useState<Category[]>([]);
-  const [industries, setIndustries] = useState<Industry[]>([]);
-  
+  const itemId = params.id as string;
+  const invalidId = !itemId || itemId === 'undefined' || itemId === 'null';
 
-  const [formData, setFormData] = useState({
+  // ALL HOOKS DECLARED BEFORE ANY CONDITIONAL RETURN
+  const [loading, setLoading] = useState(true);
+  const [loadError, setLoadError] = useState<string | null>(null);
+  const [submitting, setSubmitting] = useState(false);
+  const [submitError, setSubmitError] = useState<string | null>(null);
+  const [submitSuccess, setSubmitSuccess] = useState(false);
+
+  const [categories, setCategories] = useState<ApiCategory[]>([]);
+  const [locations, setLocations] = useState<ApiLocation[]>([]);
+  const [mediaUsage, setMediaUsage] = useState<MediaUsage | null>(null);
+
+  const [commissionRate, setCommissionRate] = useState(0);
+  const [loadingCommission, setLoadingCommission] = useState(false);
+
+  const [showCategoryModal, setShowCategoryModal] = useState(false);
+
+  const [currentImage, setCurrentImage] = useState<string | null>(null);
+  const [currentVideo, setCurrentVideo] = useState<string | null>(null);
+  const [newImageFile, setNewImageFile] = useState<File | null>(null);
+  const [newImagePreview, setNewImagePreview] = useState<string | null>(null);
+  const [newVideoFile, setNewVideoFile] = useState<File | null>(null);
+  const imageInputRef = useRef<HTMLInputElement>(null);
+  const videoInputRef = useRef<HTMLInputElement>(null);
+
+  const [form, setForm] = useState({
     name: '',
     description: '',
-    categoryId: '',
-    industryId: '',
-    locationIndex: 0,
     itemType: '' as 'product' | 'service' | '',
+    categoryId: '',
+    categoryName: '',
     sku: '',
     upc: '',
-    producer: '',
-    totalProviders: '',
-    priceInDollars: '',
-    discountPercentage: '',
-    platformChargePercentage: '',
-    upfrontPayment: false,
-    visibilityToPublic: true,
-    availabilityType: 'unlimited' as 'unlimited' | 'period',
+    platformUniqueCode: '',
+    totalAvailableQuantity: '0',
+    priceInDollars: '0.00',
+    discountPercentage: '0',
+    platformChargePercentage: '5',
+    upfrontPaymentPercentage: '0',
     startDate: '',
+    startTime: '09:00',
     endDate: '',
-    startTime: '',
-    endTime: '',
+    endTime: '23:59',
+    visibilityToPublic: true,
     notes: '',
-    subServices: [] as ApiSubService[]
+    locationIndex: '',
   });
 
-  const getToken = (): string | null => {
-    if (typeof window !== 'undefined') {
-      return localStorage.getItem('userToken') || sessionStorage.getItem('userToken');
-    }
-    return null;
-  };
+  const set = (key: keyof typeof form, val: string | boolean) =>
+    setForm(prev => ({ ...prev, [key]: val }));
 
+  const prevCategoryId = useRef('');
 
-//   useEffect(() => {
-//     const fetchLookupData = async () => {
-//       const token = getToken();
-//       if (!token) return;
-
-//       try {
-//         const [categoriesResult, industriesResult] = await Promise.all([
-//           GalleryService.getCategories(token),
-//           GalleryService.getIndustries(token)
-//         ]);
-
-//         if (categoriesResult.success && categoriesResult.data) {
-//           setCategories(categoriesResult.data);
-//         }
-//         if (industriesResult.success && industriesResult.data) {
-//           setIndustries(industriesResult.data);
-//         }
-//       } catch (error) {
-//         console.error('Error fetching lookup data:', error);
-//       }
-//     };
-
-//     fetchLookupData();
-//   }, []);
-
-  // Fetch service data
+  // Commission fetch when category changes
   useEffect(() => {
-    const fetchService = async () => {
+    if (!form.categoryId || form.categoryId === prevCategoryId.current) return;
+    prevCategoryId.current = form.categoryId;
+    const token = getToken();
+    setLoadingCommission(true);
+    GalleryService.getCommissionByCategory(token, form.categoryId)
+      .then(res => {
+        if (res.success && res.data) setCommissionRate((res.data as any).commissionRate ?? 0);
+      })
+      .catch(() => {})
+      .finally(() => setLoadingCommission(false));
+  }, [form.categoryId]);
+
+  // Mount: 4 parallel API calls
+  useEffect(() => {
+    if (invalidId) {
+      setLoadError('Invalid item ID');
+      setLoading(false);
+      return;
+    }
+
+    const token = getToken();
+
+    (async () => {
+      setLoading(true);
+      setLoadError(null);
       try {
-        setLoading(true);
-        const token = getToken();
-        
-        if (!token) {
-          router.push('/login');
+        const [itemRes, catRes, locRes, mediaRes] = await Promise.all([
+          GalleryService.getGalleryItem(token, itemId),
+          GalleryService.getCategories(token),
+          GalleryService.getLocations(token),
+          GalleryService.getMediaUsage(token),
+        ]);
+
+        if (!itemRes.success || !itemRes.data) {
+          setLoadError(itemRes.message || 'Failed to load item');
           return;
         }
 
-        const result = await GalleryService.getGalleryItem(token, id);
-        
-        if (result.success && result.data) {
-          const item = result.data as GalleryItem;
-          
-          setFormData({
-            name: item.name || '',
-            description: item.description || '',
-            categoryId: item.categoryId || '',
-            industryId: item.industryId || '',
-            locationIndex: item.locationIndex || 0,
-            itemType: item.itemType as 'product' | 'service' || '',
-            sku: item.sku || '',
-            upc: item.upc || '',
-            producer: item.producer || '',
-            totalProviders: item.totalAvailableServiceProviders?.toString() || '',
-            priceInDollars: (item.actualAmount || item.priceInDollars)?.toString() || '',
-            discountPercentage: item.discountPercentage?.toString() || '',
-            platformChargePercentage: item.platformChargePercentage?.toString() || '',
-            upfrontPayment: (item.upfrontPaymentPercentage || 0) > 0,
-            visibilityToPublic: item.visibilityToPublic,
-            availabilityType: item.availability?.type as 'unlimited' | 'period' || 'unlimited',
-            startDate: item.availability?.startDate?.split('T')[0] || '',
-            endDate: item.availability?.endDate?.split('T')[0] || '',
-            startTime: item.availability?.startTime || '',
-            endTime: item.availability?.endTime || '',
-            notes: item.notes || '',
-            subServices: item.subServices || []
-          });
-        } else {
-          setError(result.message || 'Failed to fetch service details');
-        }
-      } catch (err) {
-        setError('An error occurred while fetching service details');
-        console.error('Fetch error:', err);
+        const item = itemRes.data as any;
+        const cats: ApiCategory[] = (catRes.success && catRes.data) ? catRes.data as ApiCategory[] : [];
+        setCategories(cats);
+        if (locRes.success && locRes.data) setLocations(locRes.data as ApiLocation[]);
+        if (mediaRes.success && mediaRes.data) setMediaUsage(mediaRes.data as unknown as MediaUsage);
+
+        const catId = item.categoryId || item.category || '';
+        const catName = cats.find(c => (c._id || c.id) === catId)?.name || '';
+
+        setCurrentImage(item.imageUrl || null);
+        setCurrentVideo(item.videoUrl || null);
+
+        setForm({
+          name: item.name || '',
+          description: item.description || '',
+          itemType: item.itemType || '',
+          categoryId: catId,
+          categoryName: catName,
+          sku: item.sku || '',
+          upc: item.upc || '',
+          platformUniqueCode: item.platformUniqueCode || '',
+          totalAvailableQuantity: (item.totalAvailableQuantity ?? 0).toString(),
+          priceInDollars: (item.priceInDollars ?? 0).toString(),
+          discountPercentage: (item.discountPercentage ?? 0).toString(),
+          platformChargePercentage: (item.platformChargePercentage ?? 5).toString(),
+          upfrontPaymentPercentage: (item.upfrontPaymentPercentage ?? 0).toString(),
+          startDate: item.startDate ? item.startDate.split('T')[0] : '',
+          startTime: item.startTime || '09:00',
+          endDate: item.endDate ? item.endDate.split('T')[0] : '',
+          endTime: item.endTime || '23:59',
+          visibilityToPublic: item.visibilityToPublic !== false,
+          notes: item.notes || '',
+          locationIndex: item.locationIndex != null ? item.locationIndex.toString() : '',
+        });
+      } catch (e: any) {
+        setLoadError(e.message || 'Failed to load item. Please try again.');
       } finally {
         setLoading(false);
       }
-    };
+    })();
+  }, [itemId, invalidId]);
 
-    if (id) {
-      fetchService();
+  // ── live price ──
+  const price = parseFloat(form.priceInDollars) || 0;
+  const discount = parseFloat(form.discountPercentage) || 0;
+  const charge = commissionRate || parseFloat(form.platformChargePercentage) || 0;
+  const upfrontPct = parseFloat(form.upfrontPaymentPercentage) || 0;
+  const actualAmount = price - (price * discount) / 100 + (price * charge) / 100;
+  const upfrontAmount = (actualAmount * upfrontPct) / 100;
+
+  // ── media handlers ──
+  const handlePickImage = () => {
+    const hasExisting = !!currentImage;
+    if (!hasExisting && mediaUsage && mediaUsage.images.remaining <= 0) {
+      alert('You have reached your image upload limit.');
+      return;
     }
-  }, [id, router]);
-
-  const handleChange = (e: React.ChangeEvent<HTMLInputElement | HTMLTextAreaElement | HTMLSelectElement>) => {
-    const { name, value, type } = e.target;
-    setFormData(prev => ({
-      ...prev,
-      [name]: type === 'checkbox' ? (e.target as HTMLInputElement).checked : value
-    }));
+    imageInputRef.current?.click();
   };
 
+  const handlePickVideo = () => {
+    if (!mediaUsage?.verified) {
+      alert('Your organisation must be verified before uploading videos.');
+      return;
+    }
+    const hasExisting = !!currentVideo;
+    if (!hasExisting && mediaUsage.videos.remaining <= 0) {
+      alert('You have reached your video upload limit.');
+      return;
+    }
+    videoInputRef.current?.click();
+  };
+
+  const handleImageFileChange = (e: React.ChangeEvent<HTMLInputElement>) => {
+    const file = e.target.files?.[0];
+    if (!file) return;
+    if (newImagePreview) URL.revokeObjectURL(newImagePreview);
+    setNewImageFile(file);
+    setNewImagePreview(URL.createObjectURL(file));
+    e.target.value = '';
+  };
+
+  const handleVideoFileChange = (e: React.ChangeEvent<HTMLInputElement>) => {
+    const file = e.target.files?.[0];
+    if (!file) return;
+    setNewVideoFile(file);
+    e.target.value = '';
+  };
+
+  // ── submit ──
   const handleSubmit = async (e: React.FormEvent) => {
     e.preventDefault();
+    if (!form.name.trim() || !form.description.trim() || !form.categoryId) {
+      setSubmitError('Please fill in all required fields (Name, Description, Category)');
+      return;
+    }
     setSubmitting(true);
-    setError(null);
+    setSubmitError(null);
+    const token = getToken();
 
     try {
-      const token = getToken();
-      if (!token) {
-        router.push('/login');
+      const putRes = await HttpService.put<{ success: boolean; message?: string }>(
+        `/api/admin/gallery/${itemId}`,
+        {
+          name: form.name,
+          description: form.description,
+          itemType: form.itemType,
+          categoryId: form.categoryId,
+          sku: form.sku,
+          upc: form.upc,
+          totalAvailableQuantity: parseInt(form.totalAvailableQuantity) || 0,
+          priceInDollars: parseFloat(form.priceInDollars) || 0,
+          discountPercentage: parseFloat(form.discountPercentage) || 0,
+          upfrontPaymentPercentage: parseFloat(form.upfrontPaymentPercentage) || 0,
+          startDate: form.startDate,
+          startTime: form.startTime,
+          endDate: form.endDate,
+          endTime: form.endTime,
+          visibilityToPublic: form.visibilityToPublic,
+          notes: form.notes,
+          locationIndex: parseInt(form.locationIndex) || 0,
+        }
+      );
+
+      if (!putRes.success) {
+        setSubmitError((putRes as any).message || 'Failed to update item');
         return;
       }
 
-      // Create a payload that matches what the API expects
-      const updatePayload: UpdateServicePayload = {
-        name: formData.name,
-        description: formData.description,
-        categoryId: formData.categoryId,
-        industryId: formData.industryId,
-        locationIndex: formData.locationIndex,
-      };
+      const mediaWarnings: string[] = [];
 
-      // Add optional fields only if they have values
-      if (formData.sku) updatePayload.sku = formData.sku;
-      if (formData.upc) updatePayload.upc = formData.upc;
-      if (formData.producer) updatePayload.producer = formData.producer;
-      if (formData.totalProviders) {
-        updatePayload.totalAvailableServiceProviders = parseInt(formData.totalProviders);
-      }
-      
-      // Always include pricing fields (they should have values)
-      // actualAmount is the Naira price — send as both actualAmount and priceInDollars for compatibility
-      const priceValue = parseFloat(formData.priceInDollars) || 0;
-      updatePayload.priceInDollars = priceValue;
-      (updatePayload as any).actualAmount = priceValue;
-      updatePayload.discountPercentage = parseFloat(formData.discountPercentage) || 0;
-      updatePayload.platformChargePercentage = parseFloat(formData.platformChargePercentage) || 0;
-      updatePayload.upfrontPaymentPercentage = formData.upfrontPayment ? 30 : 0;
-      updatePayload.visibilityToPublic = formData.visibilityToPublic;
-      
-      if (formData.notes) {
-        updatePayload.notes = formData.notes;
-      }
-
-      // Upload any new sub-service images first, then map with the returned URLs
-      if (formData.subServices && formData.subServices.length > 0) {
-        const resolvedSubServices = await Promise.all(
-          formData.subServices.map(async (sub) => {
-            if (sub.file) {
-              const uploadResult = await GalleryService.uploadImage(token, id, sub.file);
-              const imageUrl = (uploadResult as any)?.data?.imageUrl || (uploadResult as any)?.imageUrl;
-              return { ...sub, uploadPicture: imageUrl || sub.uploadPicture, file: undefined, previewUrl: undefined };
-            }
-            return sub;
-          })
-        );
-        updatePayload.subServices = resolvedSubServices.map(sub => ({
-          name: sub.name,
-          description: sub.description,
-          price: sub.price,
-          ...(sub.subPlatformUniqueCode && { subPlatformUniqueCode: sub.subPlatformUniqueCode }),
-          ...(sub.uploadPicture && !sub.previewUrl && { uploadPicture: sub.uploadPicture })
-        }));
-      }
-
-      // Always include availability for services; products don't need it
-      if (formData.itemType === 'product') {
-        delete (updatePayload as any).availability;
-      } else if (formData.availabilityType === 'period') {
-        updatePayload.availability = {
-          type: 'period',
-          startDate: formData.startDate,
-          startTime: formData.startTime,
-          endDate: formData.endDate,
-          endTime: formData.endTime
-        };
-      } else {
-        updatePayload.availability = { type: 'unlimited', startDate: '', startTime: '', endDate: '', endTime: '' };
-      }
-
-      const result = await HttpService.put<{ success: boolean; data?: { galleryItem?: GalleryItem }; message?: string }>(
-        `/api/admin/gallery/${id}`,
-        updatePayload
-      );
-
-      if (result.success) {
-        const updated = result.data?.galleryItem;
-        if (updated) {
-          setFormData(prev => ({
-            ...prev,
-            name: updated.name ?? prev.name,
-            description: updated.description ?? prev.description,
-            priceInDollars: (updated.actualAmount || updated.priceInDollars)?.toString() ?? prev.priceInDollars,
-            discountPercentage: updated.discountPercentage?.toString() ?? prev.discountPercentage,
-            platformChargePercentage: updated.platformChargePercentage?.toString() ?? prev.platformChargePercentage,
-            visibilityToPublic: updated.visibilityToPublic ?? prev.visibilityToPublic,
-            subServices: updated.subServices?.length ? updated.subServices : prev.subServices,
-          }));
+      if (newImageFile) {
+        try {
+          const imgRes = await GalleryService.uploadImage(token, itemId, newImageFile);
+          if (!imgRes.success) mediaWarnings.push(`Image: ${imgRes.message || 'upload failed'}`);
+        } catch (e: any) {
+          mediaWarnings.push(`Image: ${e.message || 'upload failed'}`);
         }
-        setSuccess(true);
-        setTimeout(() => {
-          router.push('/admin/gallery/services');
-        }, 2000);
-      } else {
-        setError(result.message || 'Failed to update service');
       }
-    } catch (err) {
-      setError('An error occurred while updating');
-      console.error('Update error:', err);
+
+      if (newVideoFile) {
+        try {
+          const vidRes = await GalleryService.uploadVideo(token, itemId, newVideoFile);
+          if (!vidRes.success) mediaWarnings.push(`Video: ${vidRes.message || 'upload failed'}`);
+        } catch (e: any) {
+          mediaWarnings.push(`Video: ${e.message || 'upload failed'}`);
+        }
+      }
+
+      if (mediaWarnings.length > 0) {
+        setSubmitError(`Item saved, but media upload failed — ${mediaWarnings.join('; ')}`);
+        setSubmitting(false);
+        return;
+      }
+
+      setSubmitSuccess(true);
+      router.push('/admin/gallery');
+      router.refresh();
+    } catch (e: any) {
+      setSubmitError(e.message || 'An unexpected error occurred');
     } finally {
       setSubmitting(false);
     }
   };
 
-  if (loading) {
+  // ─── Render states ────────────────────────────────────────────────────────
+
+  if (invalidId || (loadError && !form.name)) {
     return (
-      <div className="min-h-screen bg-gray-50 py-8 px-4">
-        <div className="max-w-4xl mx-auto">
-          <div className="flex items-center justify-center h-64">
-            <div className="text-center">
-              <div className="w-16 h-16 border-4 border-[#5d2a8b] border-t-transparent rounded-full animate-spin mx-auto mb-4"></div>
-              <p className="text-gray-600">Loading service for editing...</p>
-            </div>
-          </div>
+      <div className="min-h-screen bg-gray-50 flex items-center justify-center px-4">
+        <div className="bg-white rounded-xl border border-red-200 p-8 text-center max-w-sm">
+          <AlertCircle className="w-10 h-10 text-red-500 mx-auto mb-3" />
+          <p className="text-red-700 font-semibold mb-1">{invalidId ? 'Invalid item ID' : 'Failed to load item'}</p>
+          {loadError && !invalidId && <p className="text-sm text-red-500 mb-4">{loadError}</p>}
+          <button onClick={() => router.back()} className="mt-3 px-4 py-2 bg-purple-600 text-white rounded-lg text-sm">
+            Go Back
+          </button>
         </div>
       </div>
     );
   }
 
-  if (error && !formData.name) {
+  if (loading) {
     return (
-      <div className="min-h-screen bg-gray-50 py-8 px-4">
-        <div className="max-w-4xl mx-auto">
-          <div className="bg-red-50 border border-red-200 rounded-lg p-6 text-center">
-            <h3 className="text-lg font-medium text-red-800 mb-2">Error</h3>
-            <p className="text-red-600">{error}</p>
-            <button
-              onClick={() => router.push('/admin/gallery/services')}
-              className="mt-4 px-4 py-2 bg-red-600 text-white rounded-md hover:bg-red-700"
-            >
-              Back to Gallery
-            </button>
-          </div>
+      <div className="min-h-screen bg-gray-50 flex items-center justify-center">
+        <div className="text-center">
+          <Loader2 className="w-10 h-10 animate-spin text-purple-600 mx-auto mb-3" />
+          <p className="text-gray-500 text-sm">Loading item…</p>
         </div>
       </div>
     );
   }
+
+  // ─── Main Form ────────────────────────────────────────────────────────────
+
+  const inputCls = 'w-full px-3 py-2.5 border border-gray-300 rounded-lg text-sm focus:outline-none focus:ring-2 focus:ring-purple-500 focus:border-transparent';
+  const readonlyCls = 'w-full px-3 py-2.5 border border-gray-200 rounded-lg text-sm bg-gray-50 text-gray-500 cursor-not-allowed';
+  const labelCls = 'block text-sm font-medium text-gray-700 mb-1';
 
   return (
     <div className="min-h-screen bg-gray-50">
-      <div className="max-w-7xl mx-auto py-6 px-4">
+      <input ref={imageInputRef} type="file" accept="image/*" className="hidden" onChange={handleImageFileChange} />
+      <input ref={videoInputRef} type="file" accept="video/*" className="hidden" onChange={handleVideoFileChange} />
+
+      <div className="px-4 sm:px-6 lg:px-8 py-8 max-w-3xl mx-auto">
         {/* Header */}
-        <div className="mb-6 flex items-center justify-between">
-          <button
-            onClick={() => router.push('/admin/gallery/services')}
-            className="flex items-center gap-2 text-gray-600 hover:text-gray-900"
-          >
-            <ArrowLeft className="w-5 h-5" />
-            Back to Gallery
+        <div className="flex items-center gap-3 mb-6">
+          <button onClick={() => router.back()} className="p-2 rounded-lg hover:bg-gray-100 transition-colors">
+            <ArrowLeft className="w-5 h-5 text-gray-600" />
           </button>
-          <h1 className="text-2xl font-bold text-[#5d2a8b]">Edit Service</h1>
+          <div>
+            <h1 className="text-xl font-bold text-gray-900">Edit Gallery Item</h1>
+            <p className="text-sm text-gray-500">{form.name || 'Unnamed item'}</p>
+          </div>
         </div>
 
-        {/* Success Message */}
-        {success && (
-          <div className="mb-6 p-4 bg-green-50 border border-green-200 text-green-700 rounded-lg">
-            Service updated successfully! Redirecting...
+        {submitSuccess && (
+          <div className="mb-6 flex items-center gap-3 bg-green-50 border border-green-200 rounded-xl px-4 py-3">
+            <CheckCircle className="w-5 h-5 text-green-500 shrink-0" />
+            <p className="text-sm text-green-700 font-medium">Item updated successfully! Redirecting…</p>
           </div>
         )}
 
-        {/* Error Message */}
-        {error && (
-          <div className="mb-6 p-4 bg-red-50 border border-red-200 text-red-700 rounded-lg">
-            {error}
+        {submitError && (
+          <div className="mb-6 flex items-center gap-3 bg-red-50 border border-red-200 rounded-xl px-4 py-3">
+            <AlertCircle className="w-5 h-5 text-red-500 shrink-0" />
+            <p className="text-sm text-red-700">{submitError}</p>
+            <button onClick={() => setSubmitError(null)} className="ml-auto">
+              <X className="w-4 h-4 text-red-400" />
+            </button>
           </div>
         )}
 
-        <div className="bg-white rounded-lg shadow-sm p-6">
-          <form onSubmit={handleSubmit} className="space-y-6">
-            {/* Basic Information */}
-            <div className="space-y-4">
-              <h2 className="text-lg font-semibold border-b pb-2">Basic Information</h2>
-              
-              <div className="grid grid-cols-1 md:grid-cols-2 gap-4">
-                <div>
-                  <label className="block text-sm font-medium text-gray-700 mb-1">
-                    Name <span className="text-red-500">*</span>
-                  </label>
-                  <input
-                    type="text"
-                    name="name"
-                    value={formData.name}
-                    onChange={handleChange}
-                    required
-                    className="w-full px-3 py-2 border border-gray-300 rounded-md focus:ring-[#5d2a8b] focus:border-[#5d2a8b]"
-                  />
-                </div>
+        <form onSubmit={handleSubmit} className="space-y-6">
 
-                <div>
-                  <label className="block text-sm font-medium text-gray-700 mb-1">
-                    Location Index
-                  </label>
-                  <input
-                    type="number"
-                    name="locationIndex"
-                    value={formData.locationIndex}
-                    onChange={handleChange}
-                    className="w-full px-3 py-2 border border-gray-300 rounded-md focus:ring-[#5d2a8b] focus:border-[#5d2a8b]"
-                  />
-                </div>
-
-                <div className="md:col-span-2">
-                  <label className="block text-sm font-medium text-gray-700 mb-1">
-                    Description <span className="text-red-500">*</span>
-                  </label>
-                  <textarea
-                    name="description"
-                    value={formData.description}
-                    onChange={handleChange}
-                    required
-                    rows={3}
-                    className="w-full px-3 py-2 border border-gray-300 rounded-md focus:ring-[#5d2a8b] focus:border-[#5d2a8b]"
-                  />
-                </div>
-
-                {/* <div>
-                  <label className="block text-sm font-medium text-gray-700 mb-1">
-                    Category
-                  </label>
-                  <select
-                    name="categoryId"
-                    value={formData.categoryId}
-                    onChange={handleChange}
-                    className="w-full px-3 py-2 border border-gray-300 rounded-md focus:ring-[#5d2a8b] focus:border-[#5d2a8b]"
-                  >
-                    <option value="">Select Category</option>
-                    {categories.map(cat => (
-                      <option key={cat.id} value={cat.id}>{cat.name}</option>
-                    ))}
-                  </select>
-                </div> */}
-
-                {/* <div>
-                  <label className="block text-sm font-medium text-gray-700 mb-1">
-                    Industry
-                  </label>
-                  <select
-                    name="industryId"
-                    value={formData.industryId}
-                    onChange={handleChange}
-                    className="w-full px-3 py-2 border border-gray-300 rounded-md focus:ring-[#5d2a8b] focus:border-[#5d2a8b]"
-                  >
-                    <option value="">Select Industry</option>
-                    {industries.map(ind => (
-                      <option key={ind.id} value={ind.id}>{ind.name}</option>
-                    ))}
-                  </select>
-                </div> */}
-
-                {formData.itemType === 'product' && (
-                  <div>
-                    <label className="block text-sm font-medium text-gray-700 mb-1">
-                      SKU
-                    </label>
-                    <input
-                      type="text"
-                      name="sku"
-                      value={formData.sku}
-                      onChange={handleChange}
-                      className="w-full px-3 py-2 border border-gray-300 rounded-md focus:ring-[#5d2a8b] focus:border-[#5d2a8b]"
-                    />
-                  </div>
-                )}
-
-                {formData.itemType === 'product' && (
-                  <div>
-                    <label className="block text-sm font-medium text-gray-700 mb-1">
-                      UPC
-                    </label>
-                    <input
-                      type="text"
-                      name="upc"
-                      value={formData.upc}
-                      onChange={handleChange}
-                      className="w-full px-3 py-2 border border-gray-300 rounded-md focus:ring-[#5d2a8b] focus:border-[#5d2a8b]"
-                    />
-                  </div>
-                )}
-
-                <div>
-                  <label className="block text-sm font-medium text-gray-700 mb-1">
-                    Producer
-                  </label>
-                  <input
-                    type="text"
-                    name="producer"
-                    value={formData.producer}
-                    onChange={handleChange}
-                    className="w-full px-3 py-2 border border-gray-300 rounded-md focus:ring-[#5d2a8b] focus:border-[#5d2a8b]"
-                  />
-                </div>
-
-                <div>
-                  <label className="block text-sm font-medium text-gray-700 mb-1">
-                    Total Providers
-                  </label>
-                  <input
-                    type="number"
-                    name="totalProviders"
-                    value={formData.totalProviders}
-                    onChange={handleChange}
-                    className="w-full px-3 py-2 border border-gray-300 rounded-md focus:ring-[#5d2a8b] focus:border-[#5d2a8b]"
-                  />
-                </div>
-              </div>
-            </div>
-
-            {/* Pricing Information */}
-            <div className="space-y-4">
-              <h2 className="text-lg font-semibold border-b pb-2">Pricing Information</h2>
-              
-              <div className="grid grid-cols-1 md:grid-cols-3 gap-4">
-                <div>
-                  <label className="block text-sm font-medium text-gray-700 mb-1">
-                    Price (₦) <span className="text-red-500">*</span>
-                  </label>
-                  <input
-                    type="number"
-                    name="priceInDollars"
-                    value={formData.priceInDollars}
-                    onChange={handleChange}
-                    required
-                    step="0.01"
-                    className="w-full px-3 py-2 border border-gray-300 rounded-md focus:ring-[#5d2a8b] focus:border-[#5d2a8b]"
-                  />
-                </div>
-
-                <div>
-                  <label className="block text-sm font-medium text-gray-700 mb-1">
-                    Discount (%)
-                  </label>
-                  <input
-                    type="number"
-                    name="discountPercentage"
-                    value={formData.discountPercentage}
-                    onChange={handleChange}
-                    step="0.1"
-                    min="0"
-                    max="100"
-                    className="w-full px-3 py-2 border border-gray-300 rounded-md focus:ring-[#5d2a8b] focus:border-[#5d2a8b]"
-                  />
-                </div>
-
-                <div>
-                  <label className="block text-sm font-medium text-gray-700 mb-1">
-                    Platform Charge (%)
-                  </label>
-                  <input
-                    type="number"
-                    name="platformChargePercentage"
-                    value={formData.platformChargePercentage}
-                    onChange={handleChange}
-                    step="0.1"
-                    min="0"
-                    className="w-full px-3 py-2 border border-gray-300 rounded-md focus:ring-[#5d2a8b] focus:border-[#5d2a8b]"
-                  />
-                </div>
-              </div>
-
-              <div className="flex items-center">
-                <input
-                  type="checkbox"
-                  name="upfrontPayment"
-                  id="upfrontPayment"
-                  checked={formData.upfrontPayment}
-                  onChange={(e) => setFormData(prev => ({ ...prev, upfrontPayment: e.target.checked }))}
-                  className="h-4 w-4 text-[#5d2a8b] focus:ring-[#5d2a8b] border-gray-300 rounded"
-                />
-                <label htmlFor="upfrontPayment" className="ml-2 block text-sm text-gray-700">
-                  Require Upfront Payment (30%)
-                </label>
-              </div>
-            </div>
-
-            {/* Visibility & Availability */}
-            <div className="space-y-4">
-              <h2 className="text-lg font-semibold border-b pb-2">Visibility & Availability</h2>
-              
-              <div className="flex items-center mb-4">
-                <input
-                  type="checkbox"
-                  name="visibilityToPublic"
-                  id="visibilityToPublic"
-                  checked={formData.visibilityToPublic}
-                  onChange={(e) => setFormData(prev => ({ ...prev, visibilityToPublic: e.target.checked }))}
-                  className="h-4 w-4 text-[#5d2a8b] focus:ring-[#5d2a8b] border-gray-300 rounded"
-                />
-                <label htmlFor="visibilityToPublic" className="ml-2 block text-sm text-gray-700">
-                  Visible to Public
-                </label>
-              </div>
-
+          {/* 1. Location Picker */}
+          {locations.length > 0 && (
+            <div className="bg-white rounded-xl border border-gray-200 p-5">
+              <h2 className="text-base font-semibold text-gray-900 mb-4">Location</h2>
               <div className="space-y-2">
-                <label className="block text-sm font-medium text-gray-700">Availability Type</label>
-                <div className="flex space-x-4">
-                  <label className="flex items-center">
-                    <input
-                      type="radio"
-                      name="availabilityType"
-                      value="unlimited"
-                      checked={formData.availabilityType === 'unlimited'}
-                      onChange={handleChange}
-                      className="h-4 w-4 text-[#5d2a8b] focus:ring-[#5d2a8b] border-gray-300"
-                    />
-                    <span className="ml-2 text-sm text-gray-700">Unlimited</span>
-                  </label>
-                  <label className="flex items-center">
-                    <input
-                      type="radio"
-                      name="availabilityType"
-                      value="period"
-                      checked={formData.availabilityType === 'period'}
-                      onChange={handleChange}
-                      className="h-4 w-4 text-[#5d2a8b] focus:ring-[#5d2a8b] border-gray-300"
-                    />
-                    <span className="ml-2 text-sm text-gray-700">Specific Period</span>
-                  </label>
-                </div>
-              </div>
-
-              {formData.availabilityType === 'period' && (
-                <div className="grid grid-cols-1 md:grid-cols-2 gap-4 p-4 bg-gray-50 rounded-lg">
-                  <div>
-                    <label className="block text-sm font-medium text-gray-700 mb-1">Start Date</label>
-                    <input
-                      type="date"
-                      name="startDate"
-                      value={formData.startDate}
-                      onChange={handleChange}
-                      className="w-full px-3 py-2 border border-gray-300 rounded-md focus:ring-[#5d2a8b] focus:border-[#5d2a8b]"
-                    />
-                  </div>
-                  <div>
-                    <label className="block text-sm font-medium text-gray-700 mb-1">Start Time</label>
-                    <input
-                      type="time"
-                      name="startTime"
-                      value={formData.startTime}
-                      onChange={handleChange}
-                      className="w-full px-3 py-2 border border-gray-300 rounded-md focus:ring-[#5d2a8b] focus:border-[#5d2a8b]"
-                    />
-                  </div>
-                  <div>
-                    <label className="block text-sm font-medium text-gray-700 mb-1">End Date</label>
-                    <input
-                      type="date"
-                      name="endDate"
-                      value={formData.endDate}
-                      onChange={handleChange}
-                      className="w-full px-3 py-2 border border-gray-300 rounded-md focus:ring-[#5d2a8b] focus:border-[#5d2a8b]"
-                    />
-                  </div>
-                  <div>
-                    <label className="block text-sm font-medium text-gray-700 mb-1">End Time</label>
-                    <input
-                      type="time"
-                      name="endTime"
-                      value={formData.endTime}
-                      onChange={handleChange}
-                      className="w-full px-3 py-2 border border-gray-300 rounded-md focus:ring-[#5d2a8b] focus:border-[#5d2a8b]"
-                    />
-                  </div>
-                </div>
-              )}
-            </div>
-
-            {/* Notes */}
-            <div className="space-y-4">
-              <h2 className="text-lg font-semibold border-b pb-2">Additional Notes</h2>
-              <textarea
-                name="notes"
-                value={formData.notes}
-                onChange={handleChange}
-                rows={4}
-                className="w-full px-3 py-2 border border-gray-300 rounded-md focus:ring-[#5d2a8b] focus:border-[#5d2a8b]"
-                placeholder="Any additional notes about the service..."
-              />
-            </div>
-
-            {/* Sub-services */}
-            {formData.itemType === 'service' && (
-              <div className="space-y-4">
-                <div className="flex items-center justify-between border-b pb-2">
-                  <h2 className="text-lg font-semibold">Sub-services ({formData.subServices.length})</h2>
-                  <button
-                    type="button"
-                    onClick={() => setFormData(prev => ({
-                      ...prev,
-                      subServices: [...prev.subServices, { name: '', description: '', price: 0 }]
-                    }))}
-                    className="text-sm px-3 py-1 bg-[#5d2a8b] text-white rounded-md hover:bg-[#4a2170]"
-                  >
-                    + Add Sub-service
-                  </button>
-                </div>
-                {formData.subServices.length === 0 && (
-                  <p className="text-sm text-gray-500 italic">No sub-services yet.</p>
-                )}
-                {formData.subServices.map((sub, index) => (
-                  <div key={index} className="p-4 bg-gray-50 rounded-lg border space-y-3">
-                    <div className="flex justify-between items-center">
-                      <span className="text-sm font-medium text-gray-700">Sub-service {index + 1}</span>
-                      <button
-                        type="button"
-                        onClick={() => setFormData(prev => ({
-                          ...prev,
-                          subServices: prev.subServices.filter((_, i) => i !== index)
-                        }))}
-                        className="text-xs text-red-600 hover:text-red-800"
-                      >
-                        Remove
-                      </button>
-                    </div>
-                    <input
-                      type="text"
-                      value={sub.name}
-                      onChange={(e) => {
-                        const updated = [...formData.subServices];
-                        updated[index] = { ...updated[index], name: e.target.value };
-                        setFormData(prev => ({ ...prev, subServices: updated }));
-                      }}
-                      placeholder="Name"
-                      className="w-full px-3 py-2 border border-gray-300 rounded-md text-sm"
-                    />
-                    <textarea
-                      value={sub.description}
-                      onChange={(e) => {
-                        const updated = [...formData.subServices];
-                        updated[index] = { ...updated[index], description: e.target.value };
-                        setFormData(prev => ({ ...prev, subServices: updated }));
-                      }}
-                      placeholder="Description"
-                      rows={2}
-                      className="w-full px-3 py-2 border border-gray-300 rounded-md text-sm"
-                    />
-                    <input
-                      type="number"
-                      value={sub.price}
-                      onChange={(e) => {
-                        const updated = [...formData.subServices];
-                        updated[index] = { ...updated[index], price: parseFloat(e.target.value) || 0 };
-                        setFormData(prev => ({ ...prev, subServices: updated }));
-                      }}
-                      placeholder="Price (₦)"
-                      step="0.01"
-                      min="0"
-                      className="w-full px-3 py-2 border border-gray-300 rounded-md text-sm"
-                    />
-                    {/* Sub-service image upload */}
-                    <div>
-                      <label className="block text-xs font-medium text-gray-700 mb-1">Image (optional)</label>
-                      {(sub.previewUrl || sub.uploadPicture) ? (
-                        <div className="relative inline-block">
-                          <img
-                            src={sub.previewUrl || sub.uploadPicture}
-                            alt="Sub-service preview"
-                            className="w-32 h-32 object-cover rounded-lg border border-gray-200"
-                          />
-                          <button
-                            type="button"
-                            onClick={() => {
-                              if (sub.previewUrl) URL.revokeObjectURL(sub.previewUrl);
-                              const updated = [...formData.subServices];
-                              updated[index] = { ...updated[index], file: undefined, previewUrl: undefined, uploadPicture: undefined };
-                              setFormData(prev => ({ ...prev, subServices: updated }));
-                            }}
-                            className="absolute -top-2 -right-2 bg-red-500 text-white rounded-full w-5 h-5 flex items-center justify-center text-xs hover:bg-red-600"
-                          >
-                            ✕
-                          </button>
-                        </div>
-                      ) : (
-                        <label className="flex flex-col items-center justify-center w-32 h-32 border-2 border-dashed border-gray-300 rounded-lg cursor-pointer bg-white hover:bg-gray-50 transition-colors">
-                          <svg xmlns="http://www.w3.org/2000/svg" className="w-6 h-6 text-gray-400 mb-1" fill="none" viewBox="0 0 24 24" stroke="currentColor" strokeWidth={2}>
-                            <path strokeLinecap="round" strokeLinejoin="round" d="M4 16l4.586-4.586a2 2 0 012.828 0L16 16m-2-2l1.586-1.586a2 2 0 012.828 0L20 14m-6-6h.01M6 20h12a2 2 0 002-2V6a2 2 0 00-2-2H6a2 2 0 00-2 2v12a2 2 0 002 2z" />
-                          </svg>
-                          <span className="text-xs text-gray-500">Upload image</span>
-                          <input
-                            type="file"
-                            accept="image/jpeg,image/png,image/webp"
-                            className="hidden"
-                            onChange={(e) => {
-                              const file = e.target.files?.[0];
-                              if (!file) return;
-                              const previewUrl = URL.createObjectURL(file);
-                              const updated = [...formData.subServices];
-                              updated[index] = { ...updated[index], file, previewUrl };
-                              setFormData(prev => ({ ...prev, subServices: updated }));
-                            }}
-                          />
-                        </label>
+                {locations.map(loc => {
+                  const isPending = loc.status === 'Pending Payment';
+                  const isSelected = form.locationIndex === loc.locationIndex.toString();
+                  return (
+                    <label
+                      key={loc.locationIndex}
+                      className={`flex items-start gap-3 p-3 rounded-lg border cursor-pointer transition-colors ${
+                        isPending
+                          ? 'opacity-50 cursor-not-allowed bg-gray-50 border-gray-200'
+                          : isSelected
+                          ? 'bg-purple-50 border-purple-300'
+                          : 'bg-white border-gray-200 hover:border-purple-200'
+                      }`}
+                    >
+                      <input
+                        type="radio"
+                        name="locationIndex"
+                        value={loc.locationIndex.toString()}
+                        checked={isSelected}
+                        disabled={isPending}
+                        onChange={() => !isPending && set('locationIndex', loc.locationIndex.toString())}
+                        className="mt-0.5 accent-purple-600"
+                      />
+                      <div className="flex-1 min-w-0">
+                        <p className="text-sm font-medium text-gray-900 truncate">{loc.brandName}</p>
+                        <p className="text-xs text-gray-500 truncate">{loc.cityRegion}</p>
+                      </div>
+                      {isPending && (
+                        <span className="text-xs bg-yellow-100 text-yellow-700 px-2 py-0.5 rounded-full shrink-0">
+                          Pending Payment
+                        </span>
                       )}
-                    </div>
-                  </div>
-                ))}
+                      {isSelected && !isPending && (
+                        <CheckCircle className="w-4 h-4 text-purple-600 shrink-0 mt-0.5" />
+                      )}
+                    </label>
+                  );
+                })}
+              </div>
+            </div>
+          )}
+
+          {/* 2. Item Type */}
+          <div className="bg-white rounded-xl border border-gray-200 p-5">
+            <h2 className="text-base font-semibold text-gray-900 mb-4">Item Type</h2>
+            <div className="flex gap-4">
+              {(['product', 'service'] as const).map(t => (
+                <label
+                  key={t}
+                  className={`flex-1 flex items-center gap-3 p-3 rounded-lg border cursor-pointer transition-colors ${
+                    form.itemType === t ? 'bg-purple-50 border-purple-300' : 'bg-white border-gray-200 hover:border-purple-200'
+                  }`}
+                >
+                  <input
+                    type="radio"
+                    name="itemType"
+                    value={t}
+                    checked={form.itemType === t}
+                    onChange={() => set('itemType', t)}
+                    className="accent-purple-600"
+                  />
+                  <span className="text-sm font-medium capitalize text-gray-800">{t}</span>
+                </label>
+              ))}
+            </div>
+          </div>
+
+          {/* 3. Basic Information */}
+          <div className="bg-white rounded-xl border border-gray-200 p-5 space-y-4">
+            <h2 className="text-base font-semibold text-gray-900">Basic Information</h2>
+
+            <div>
+              <label className={labelCls}>Name <span className="text-red-500">*</span></label>
+              <input className={inputCls} value={form.name} onChange={e => set('name', e.target.value)} placeholder="Item name" />
+            </div>
+
+            <div>
+              <label className={labelCls}>Description <span className="text-red-500">*</span></label>
+              <textarea rows={3} className={inputCls} value={form.description} onChange={e => set('description', e.target.value)} placeholder="Item description" />
+            </div>
+
+            <div>
+              <label className={labelCls}>Category <span className="text-red-500">*</span></label>
+              <button
+                type="button"
+                onClick={() => setShowCategoryModal(true)}
+                className={`${inputCls} flex items-center justify-between text-left`}
+              >
+                <span className={form.categoryName ? 'text-gray-900' : 'text-gray-400'}>
+                  {form.categoryName || 'Select category…'}
+                </span>
+                <ChevronDown className="w-4 h-4 text-gray-400 shrink-0" />
+              </button>
+            </div>
+
+            {form.categoryId && (
+              <div className="bg-green-50 border border-green-200 rounded-lg px-4 py-2.5 flex items-center gap-2">
+                {loadingCommission
+                  ? <Loader2 className="w-3.5 h-3.5 animate-spin text-green-600" />
+                  : <CheckCircle className="w-3.5 h-3.5 text-green-600" />}
+                <p className="text-xs text-green-700">Platform Commission: <strong>{commissionRate}%</strong></p>
               </div>
             )}
 
-            {/* Submit Button */}
-            <div className="flex justify-end pt-4">
-              <button
-                type="submit"
-                disabled={submitting}
-                className="px-6 py-2 bg-[#5d2a8b] text-white rounded-md hover:bg-[#4a2170] transition-colors disabled:bg-purple-300 flex items-center gap-2"
-              >
-                <Save className="w-4 h-4" />
-                {submitting ? 'Updating...' : 'Update Service'}
-              </button>
+            <div className="grid grid-cols-1 sm:grid-cols-2 gap-4">
+              <div>
+                <label className={labelCls}>Price ₦</label>
+                <input type="number" min="0" step="0.01" className={inputCls} value={form.priceInDollars} onChange={e => set('priceInDollars', e.target.value)} />
+              </div>
+              <div>
+                <label className={labelCls}>Discount %</label>
+                <input type="number" min="0" max="100" step="0.1" className={inputCls} value={form.discountPercentage} onChange={e => set('discountPercentage', e.target.value)} />
+              </div>
+              <div>
+                <label className={labelCls}>Upfront Payment %</label>
+                <input type="number" min="0" max="100" step="1" className={inputCls} value={form.upfrontPaymentPercentage} onChange={e => set('upfrontPaymentPercentage', e.target.value)} />
+                {upfrontPct > 0 && (
+                  <div className="mt-1.5 bg-orange-50 border border-orange-200 rounded-lg px-3 py-1.5">
+                    <p className="text-xs text-orange-700">Upfront amount: <strong>{formatCurrency(upfrontAmount)}</strong></p>
+                  </div>
+                )}
+              </div>
+              <div>
+                <label className={labelCls}>Platform Charge %</label>
+                <input type="text" readOnly className={readonlyCls} value={`${commissionRate || parseFloat(form.platformChargePercentage) || 0}%`} />
+              </div>
             </div>
-          </form>
-        </div>
+
+            <div className="bg-purple-50 border border-purple-200 rounded-lg px-4 py-3 flex items-center justify-between">
+              <span className="text-sm text-purple-700">Actual Amount</span>
+              <span className="text-base font-bold text-purple-800">{formatCurrency(actualAmount)}</span>
+            </div>
+
+            <div className="grid grid-cols-2 gap-4">
+              <div>
+                <label className={labelCls}>Start Date</label>
+                <input type="date" className={inputCls} value={form.startDate} onChange={e => set('startDate', e.target.value)} />
+              </div>
+              <div>
+                <label className={labelCls}>Start Time</label>
+                <input type="time" className={inputCls} value={form.startTime} onChange={e => set('startTime', e.target.value)} />
+              </div>
+              <div>
+                <label className={labelCls}>End Date</label>
+                <input type="date" className={inputCls} value={form.endDate} onChange={e => set('endDate', e.target.value)} />
+              </div>
+              <div>
+                <label className={labelCls}>End Time</label>
+                <input type="time" className={inputCls} value={form.endTime} onChange={e => set('endTime', e.target.value)} />
+              </div>
+            </div>
+
+            <div>
+              <label className={labelCls}>Visibility to Public</label>
+              <div className="flex gap-4">
+                {([true, false] as const).map(val => (
+                  <label
+                    key={String(val)}
+                    className={`flex items-center gap-2 px-4 py-2.5 rounded-lg border cursor-pointer text-sm transition-colors ${
+                      form.visibilityToPublic === val
+                        ? 'bg-purple-50 border-purple-300 text-purple-700 font-medium'
+                        : 'border-gray-200 text-gray-600 hover:border-purple-200'
+                    }`}
+                  >
+                    <input
+                      type="radio"
+                      name="visibilityToPublic"
+                      checked={form.visibilityToPublic === val}
+                      onChange={() => set('visibilityToPublic', val)}
+                      className="accent-purple-600"
+                    />
+                    {val ? 'Yes' : 'No'}
+                  </label>
+                ))}
+              </div>
+            </div>
+
+            <div>
+              <label className={labelCls}>Notes</label>
+              <textarea rows={3} className={inputCls} value={form.notes} onChange={e => set('notes', e.target.value)} placeholder="Any notes…" />
+            </div>
+
+            {/* Product-only fields */}
+            {form.itemType === 'product' && (
+              <div className="grid grid-cols-1 sm:grid-cols-3 gap-4 pt-2 border-t border-gray-100">
+                <div>
+                  <label className={labelCls}>SKU</label>
+                  <input className={inputCls} value={form.sku} onChange={e => set('sku', e.target.value)} placeholder="Stock Keeping Unit" />
+                </div>
+                <div>
+                  <label className={labelCls}>UPC</label>
+                  <input className={inputCls} value={form.upc} onChange={e => set('upc', e.target.value)} placeholder="Universal Product Code" />
+                </div>
+                <div>
+                  <label className={labelCls}>Qty Available</label>
+                  <input type="number" min="0" className={inputCls} value={form.totalAvailableQuantity} onChange={e => set('totalAvailableQuantity', e.target.value)} />
+                </div>
+              </div>
+            )}
+          </div>
+
+          {/* 4. Current Media */}
+          {(currentImage || currentVideo) && (
+            <div className="bg-white rounded-xl border border-gray-200 p-5">
+              <h2 className="text-base font-semibold text-gray-900 mb-4">Current Media</h2>
+              {currentImage && (
+                <div className="w-full rounded-lg overflow-hidden border border-gray-200 mb-3" style={{ height: 200 }}>
+                  <img src={currentImage} alt="Current" className="w-full h-full object-cover" />
+                </div>
+              )}
+              {currentVideo && (
+                <div className="flex items-center gap-3 bg-gray-50 rounded-lg border border-gray-200 px-4 py-3">
+                  <Video className="w-8 h-8 text-gray-400" />
+                  <p className="text-sm text-gray-600">Video uploaded</p>
+                </div>
+              )}
+            </div>
+          )}
+
+          {/* 5. Update Media */}
+          <div className="bg-white rounded-xl border border-gray-200 p-5">
+            <h2 className="text-base font-semibold text-gray-900 mb-2">Update Media</h2>
+            {mediaUsage && (
+              <div className="space-y-2 mb-5 p-3 bg-gray-50 rounded-lg">
+                {mediaUsage.images && (
+                  <UsageBar label="Images" current={mediaUsage.images.current ?? 0} max={mediaUsage.images.max ?? 0} />
+                )}
+                {mediaUsage.videos && (
+                  <UsageBar label="Videos" current={mediaUsage.videos.current ?? 0} max={mediaUsage.videos.max ?? 0} />
+                )}
+                {!mediaUsage.verified && (
+                  <p className="text-xs text-yellow-700 bg-yellow-50 rounded px-2 py-1 mt-1">
+                    Organisation not verified — video upload unavailable
+                  </p>
+                )}
+              </div>
+            )}
+            <div className="flex flex-wrap gap-4">
+              <div className="flex-1 min-w-[200px]">
+                {newImagePreview ? (
+                  <div className="relative">
+                    <img src={newImagePreview} alt="New" className="w-full h-40 object-cover rounded-lg border border-gray-200" />
+                    <button
+                      type="button"
+                      onClick={() => { if (newImagePreview) URL.revokeObjectURL(newImagePreview); setNewImageFile(null); setNewImagePreview(null); }}
+                      className="absolute top-2 right-2 bg-red-500 text-white rounded-full w-6 h-6 flex items-center justify-center hover:bg-red-600"
+                    >
+                      <X className="w-3.5 h-3.5" />
+                    </button>
+                    <p className="text-xs text-gray-500 mt-1 truncate">{newImageFile?.name}</p>
+                  </div>
+                ) : (
+                  <button
+                    type="button"
+                    onClick={handlePickImage}
+                    className="w-full h-24 flex flex-col items-center justify-center border-2 border-dashed border-gray-300 rounded-xl text-gray-500 hover:border-purple-400 hover:bg-purple-50 transition-colors gap-2"
+                  >
+                    <ImageIcon className="w-6 h-6" />
+                    <span className="text-xs font-medium">{currentImage ? 'Replace Image' : 'Upload Image'}</span>
+                  </button>
+                )}
+              </div>
+              <div className="flex-1 min-w-[200px]">
+                {newVideoFile ? (
+                  <div className="h-24 flex items-center gap-3 bg-indigo-50 border border-indigo-200 rounded-xl px-4">
+                    <Video className="w-6 h-6 text-indigo-500 shrink-0" />
+                    <div className="flex-1 min-w-0">
+                      <p className="text-sm text-indigo-700 font-medium truncate">{newVideoFile.name}</p>
+                      <p className="text-xs text-indigo-500">{(newVideoFile.size / 1024 / 1024).toFixed(1)} MB</p>
+                    </div>
+                    <button type="button" onClick={() => setNewVideoFile(null)} className="p-1 rounded-full hover:bg-indigo-100">
+                      <X className="w-4 h-4 text-indigo-500" />
+                    </button>
+                  </div>
+                ) : (
+                  <button
+                    type="button"
+                    onClick={handlePickVideo}
+                    className="w-full h-24 flex flex-col items-center justify-center border-2 border-dashed border-gray-300 rounded-xl text-gray-500 hover:border-indigo-400 hover:bg-indigo-50 transition-colors gap-2"
+                  >
+                    <Video className="w-6 h-6" />
+                    <span className="text-xs font-medium">{currentVideo ? 'Replace Video' : 'Upload Video'}</span>
+                  </button>
+                )}
+              </div>
+            </div>
+          </div>
+
+          {/* 6. Additional Information */}
+          <div className="bg-white rounded-xl border border-gray-200 p-5">
+            <h2 className="text-base font-semibold text-gray-900 mb-4">Additional Information</h2>
+            <textarea
+              rows={4}
+              className={inputCls}
+              value={form.notes}
+              onChange={e => set('notes', e.target.value)}
+              placeholder="Additional notes or instructions…"
+            />
+          </div>
+
+          {/* Submit */}
+          <button
+            type="submit"
+            disabled={submitting}
+            className="w-full py-3.5 rounded-xl font-semibold text-sm transition-colors flex items-center justify-center gap-2 disabled:cursor-not-allowed disabled:opacity-60 bg-purple-600 hover:bg-purple-700 text-white"
+          >
+            {submitting ? (
+              <><Loader2 className="w-4 h-4 animate-spin" /> Updating…</>
+            ) : (
+              <><Upload className="w-4 h-4" /> Update Gallery Item</>
+            )}
+          </button>
+        </form>
       </div>
+
+      {/* Category Modal */}
+      {showCategoryModal && (
+        <div className="fixed inset-0 z-[1001] flex flex-col bg-white">
+          <div className="flex items-center gap-3 px-4 py-4 border-b border-gray-100">
+            <button onClick={() => setShowCategoryModal(false)} className="p-2 rounded-lg hover:bg-gray-100">
+              <X className="w-5 h-5" />
+            </button>
+            <h2 className="text-lg font-bold text-gray-900">Select Category</h2>
+          </div>
+          <div className="flex-1 overflow-y-auto divide-y divide-gray-100">
+            {categories.length === 0 ? (
+              <p className="text-sm text-gray-400 text-center py-12">No categories available</p>
+            ) : (
+              categories.map(cat => {
+                const id = cat._id || cat.id || '';
+                const isActive = form.categoryId === id;
+                return (
+                  <button
+                    key={id}
+                    type="button"
+                    onClick={() => { set('categoryId', id); set('categoryName', cat.name); setShowCategoryModal(false); }}
+                    className={`w-full flex items-center justify-between px-5 py-4 text-left hover:bg-gray-50 transition-colors ${isActive ? 'bg-purple-50' : ''}`}
+                  >
+                    <span className={`text-sm font-medium ${isActive ? 'text-purple-700' : 'text-gray-800'}`}>{cat.name}</span>
+                    {isActive && <CheckCircle className="w-4 h-4 text-purple-600" />}
+                  </button>
+                );
+              })
+            )}
+          </div>
+        </div>
+      )}
     </div>
   );
 }

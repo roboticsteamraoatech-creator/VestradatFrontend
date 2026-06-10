@@ -4,4 +4,4 @@
  */
 export const BASE_URL =
   process.env.NEXT_PUBLIC_BACKEND_API ||
-  'https://datacapture-backend.onrender.com';
+  'http://localhost:5000';

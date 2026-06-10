@@ -11,16 +11,17 @@ export default function RootLayout({
 }: {
   children: React.ReactNode;
 }) {
-  const [showSidebar, setShowSidebar] = useState(true) // Open by default on desktop
+  const [showSidebar, setShowSidebar] = useState(false);
 
   return (
     <SubscriptionGuard>
-      <div className="min-h-screen bg-[#F7F0FE] relative">
-        
+      <div className="min-h-screen bg-[#F7F0FE]">
         <UserSidebar onShow={showSidebar} setShow={setShowSidebar} />
-        
-        
-        <div className="relative w-full pt-0 md:pt-0">
+        <div
+          className={`transition-[margin-left] duration-300 ease-in-out ${
+            showSidebar ? 'md:ml-[328px]' : 'md:ml-[72px]'
+          }`}
+        >
           {children}
         </div>
       </div>

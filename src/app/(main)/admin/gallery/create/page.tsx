@@ -670,20 +670,22 @@ useEffect(() => {
     if (result.success && result.data?.galleryItem?._id) {
       const galleryItemId = result.data.galleryItem._id;
 
+      const mediaErrors: string[] = [];
+
       // Upload images
       if (images.length > 0) {
-        console.log('Uploading', images.length, 'images');
         for (let i = 0; i < images.length; i++) {
           const isMainImage = i === 0;
-          await GalleryService.uploadImage(token, galleryItemId, images[i], isMainImage);
+          const imgRes = await GalleryService.uploadImage(token, galleryItemId, images[i], isMainImage);
+          if (!imgRes.success) mediaErrors.push(imgRes.message || 'Image upload failed');
         }
       }
 
       // Upload videos
       if (videos.length > 0) {
-        console.log('Uploading', videos.length, 'videos');
         for (let i = 0; i < videos.length; i++) {
-          await GalleryService.uploadVideo(token, galleryItemId, videos[i]);
+          const vidRes = await GalleryService.uploadVideo(token, galleryItemId, videos[i]);
+          if (!vidRes.success) mediaErrors.push(vidRes.message || 'Video upload failed');
         }
       }
 
@@ -713,6 +715,14 @@ useEffect(() => {
             }))
           })
         });
+      }
+
+      // Show media upload errors as a non-fatal warning but still navigate
+      if (mediaErrors.length > 0) {
+        setErrors({ general: `Item created, but some media failed to upload: ${mediaErrors.join('; ')}` });
+        setLoading(false);
+        setTimeout(() => router.push('/admin/gallery'), 3000);
+        return;
       }
 
       // Success
