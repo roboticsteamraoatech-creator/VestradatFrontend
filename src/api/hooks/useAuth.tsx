@@ -2,12 +2,12 @@
 
 import { useAuthContext } from "@/AuthContext";
 import axios from "axios";
-import { BASE_URL } from '@/config/api';
+import { BASE_URL as base_url } from '@/config/api';
 
 export const apiUrl = process.env.NEXT_PUBLIC_BACKEND_API;
 
 // Use the actual backend URL directly, with fallback
-const BASE_URL = apiUrl || BASE_URL;
+const BASE_URL = apiUrl || base_url;
 
 export const useAuth = () => {
   const { token, user, signOut } = useAuthContext();

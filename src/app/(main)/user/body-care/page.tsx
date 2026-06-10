@@ -10,10 +10,13 @@ import { PublicProductService } from '@/services/publicProductService.ts';
 import ProductDetailsView from '@/modules/user/body-care/ProductDetailsView';
 import SubServiceView from '@/modules/user/body-care/SubServiceView';
 import ProductCard from '@/modules/user/body-care/ProductCard';
+import { useAuth } from '@/api/hooks/useAuth';
+import { toast } from 'react-toastify';
 
 const BodyCarePage = () => {
   const router = useRouter();
   const [searchTerm, setSearchTerm] = useState('');
+  const {user, token} = useAuth();
   const [platformCodeTerm, setPlatformCodeTerm] = useState(''); // Separate tracking for code submissions
   const [selectedCategoryName, setSelectedCategoryName] = useState('');
   const [selectedCity, setSelectedCity] = useState('');
@@ -212,6 +215,60 @@ const BodyCarePage = () => {
     // localStorage.setItem('selectedProduct', JSON.stringify(paymentData));
     localStorage.setItem('selectedProduct', JSON.stringify(product));
     router.push('/user/payment');
+  };
+
+  const [cartUpdating, setCartUpdating] = useState<boolean>(false);
+
+const handleAddToCart = async (galleryItemId: string) => {
+  // Guard clause to ensure token exists before hitting protected endpoints
+  if (!token) {
+    alert("Please log in to add items to your shopping cart.");
+    router.push("/auth/login");
+    return;
+  }
+
+  try {
+    setCartUpdating(true);
+
+    // Call your backend endpoint: POST /api/cart/add
+    const response = await fetch('https://datacapture-backend.onrender.com/api/cart/add', {
+      method: 'POST',
+      headers: {
+        'Authorization': `Bearer ${token}`,
+        'Content-Type': 'application/json'
+      },
+      body: JSON.stringify({
+        galleryItemId: galleryItemId,
+        quantity: 1 // Default initial increment as per standard marketplace behavior
+      })
+    });
+
+    const result = await response.json();
+
+    if (result.success) {
+      // Optional: If you maintain a global cart state or context, update it here
+      // e.g., refreshCartState(result.data.cart);
+      // toast.success("Product added to cart successfully!");
+      alert("Product added to cart successfully!");
+    } else {
+      // Handle explicit business rule failures defined in your documentation
+      switch (result.message) {
+        case "Services cannot be added to cart. Please use the direct booking flow for services.":
+          alert("Services cannot be added to the cart. Please click 'View Details' to book this service directly.");
+          break;
+        case "This item has a pending remaining balance. You cannot add it again until the balance is paid.":
+          alert("You already have an outstanding upfront installment balance for this item in your cart. Please clear it at checkout first.");
+          break;
+        default:
+          alert(result.message || "Failed to add item to cart.");
+      }
+    }
+  } catch (err) {
+    console.error("Error updating cart pipeline matrix:", err);
+    alert("Network error connecting to the checkout servers. Please try again.");
+  } finally {
+    setCartUpdating(false);
+  }
   };
 
   const bookAppointment = (product: ExtendedPublicProductDetails, subService?: SubService) => {
@@ -512,6 +569,7 @@ const BodyCarePage = () => {
                     key={product.id}
                     product={product}
                     onViewDetails={handleViewDetails}
+                    onAddToCart={handleAddToCart}
                     formatCurrency={formatCurrency}
                   />
                 ))}
