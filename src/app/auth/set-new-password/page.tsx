@@ -1,12 +1,12 @@
 "use client";
 
-import React, { useState } from 'react';
+import React, { useState, Suspense } from 'react';
 import { useRouter, useSearchParams } from 'next/navigation';
 import Link from 'next/link';
 
 import { BASE_URL } from '@/config/api';
 
-export default function SetNewPasswordPage() {
+function SetNewPasswordContent() {
   const router = useRouter();
   const searchParams = useSearchParams();
   const email = searchParams.get('email') || '';
@@ -138,5 +138,13 @@ export default function SetNewPasswordPage() {
         </div>
       </div>
     </div>
+  );
+}
+
+export default function SetNewPasswordPage() {
+  return (
+    <Suspense fallback={null}>
+      <SetNewPasswordContent />
+    </Suspense>
   );
 }

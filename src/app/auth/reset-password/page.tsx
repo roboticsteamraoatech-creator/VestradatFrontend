@@ -1,12 +1,12 @@
 "use client";
 
-import React, { useState, useEffect, useRef, useCallback } from 'react';
+import React, { useState, useEffect, useRef, useCallback, Suspense } from 'react';
 import { useRouter, useSearchParams } from 'next/navigation';
 import Link from 'next/link';
 
 import { BASE_URL } from '@/config/api';
 
-export default function ResetPasswordOTPPage() {
+function ResetPasswordOTPContent() {
   const router = useRouter();
   const searchParams = useSearchParams();
   const email = searchParams.get('email') || '';
@@ -205,5 +205,13 @@ export default function ResetPasswordOTPPage() {
         </div>
       </div>
     </div>
+  );
+}
+
+export default function ResetPasswordOTPPage() {
+  return (
+    <Suspense fallback={null}>
+      <ResetPasswordOTPContent />
+    </Suspense>
   );
 }

@@ -9,9 +9,9 @@ import { useAuthContext } from '@/AuthContext';
 import ServiceFields from '@/app/components/gallery/ServiceFields';
 import MediaUpload from '@/app/components/gallery/MediaUpload';
 import PricingSection from '@/app/components/gallery/PricingSection';
-import { 
 import { BASE_URL } from '@/config/api';
-  SubService, 
+import {
+  SubService,
   TimeWindow, 
   DayAvailability, 
   AvailabilityPeriod, 
