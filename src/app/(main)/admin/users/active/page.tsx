@@ -480,7 +480,7 @@ const ActiveUsersPage = () => {
         }
       `}</style>
 
-      <div className="ml-0 md:ml-[350px] pt-8 md:pt-8 p-4 md:p-8 min-h-screen">
+      <div className=" pt-8 md:pt-8 p-4 md:p-8 min-h-screen">
         {/* Search and Filter Section */}
         <div className="mb-6">
           <h1 className="text-2xl font-bold text-gray-800 mb-6">Active Users</h1>

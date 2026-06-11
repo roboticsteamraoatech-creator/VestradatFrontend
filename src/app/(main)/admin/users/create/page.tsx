@@ -189,13 +189,8 @@ const CreateUserForm = () => {
   };
 
   return (
-    <div className="min-h-screen bg-gray-50">
-      <style jsx>{`
-        @import url('https://fonts.googleapis.com/css2?family=Manrope:wght@300;400;500;600;700&display=swap');
-        * { font-family: 'Manrope', sans-serif; }
-      `}</style>
-
-      <div className="ml-0 md:ml-[350px] pt-24 md:pt-32 p-4 md:p-8">
+    <div className="min-h-screen bg-gray-50 px-4 sm:px-6 lg:px-8 py-8">
+      <div className="max-w-4xl mx-auto">
         {/* Header */}
         <div className="mb-8">
           <button
@@ -368,7 +363,7 @@ const CreateUserForm = () => {
                     <button
                       type="button"
                       onClick={generatePassword}
-                      className="px-4 py-3 bg-gray-100 text-gray-700 rounded-lg hover:bg-gray-200 transition-colors duration-200 font-medium whitespace-nowrap"
+                      className="px-4 py-3 bg-purple-100 text-[#5D2A8B] rounded-lg hover:bg-purple-200 transition-colors duration-200 font-medium whitespace-nowrap"
                     >
                       Generate
                     </button>
