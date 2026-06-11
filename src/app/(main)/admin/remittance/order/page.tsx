@@ -101,7 +101,7 @@ const OrderPage = () => {
 
   if (loading) {
     return (
-      <div className="min-h-screen bg-gray-50 flex items-center justify-center ml-0 md:ml-[350px]">
+      <div className="min-h-screen bg-gray-50 flex items-center justify-center">
         <div className="text-center">
           <div className="animate-spin rounded-full h-12 w-12 border-b-2 border-purple-600 mx-auto" />
           <p className="mt-4 text-gray-600">Loading settlements...</p>
@@ -114,7 +114,7 @@ const OrderPage = () => {
     <div className="min-h-screen bg-gray-50">
       <style>{`@import url('https://fonts.googleapis.com/css2?family=Manrope:wght@400;500;600;700&display=swap'); * { font-family: 'Manrope', sans-serif; }`}</style>
 
-      <div className="ml-0 md:ml-[350px] pt-8 p-4 md:p-8 min-h-screen">
+      <div className="px-4 sm:px-6 lg:px-8 py-8 min-h-screen">
         <div className="mb-6 flex items-center justify-between">
           <div>
             <h2 className="text-2xl font-bold text-gray-900">Order Settlements</h2>
