@@ -1,7 +1,7 @@
 ﻿"use client";
 
 import React, { useState, useEffect } from 'react';
-import { Search, Package, Calendar, Users, Tag, Percent, Eye, Plus, ShieldCheck, List } from 'lucide-react';
+import { Search, Package, Calendar, Users, Tag, Percent, Eye, Plus, List } from 'lucide-react';
 import Link from 'next/link';
 import { useAuthContext } from '@/AuthContext';
 import ServicesModal from '@/components/modals/ServicesModal';
@@ -299,14 +299,8 @@ const ViewSubscriptionPackagesPage = () => {
           </div>
           
           <div className="flex gap-3">
-            <Link href="/admin/subscription/profile">
-              <button className="px-6 py-3 bg-[#5D2A8B] text-white rounded-lg hover:bg-purple-700 transition-colors duration-200 flex items-center gap-2">
-                <ShieldCheck className="w-5 h-5" />
-                Verify Profile
-              </button>
-            </Link>
             <Link href="/admin/subscription/upgrade">
-              <button className="px-6 py-3 bg-green-600 text-white rounded-lg hover:bg-green-700 transition-colors duration-200 flex items-center gap-2">
+              <button className="px-6 py-3 bg-purple-600 text-white rounded-lg hover:bg-purple-700 transition-colors duration-200 flex items-center gap-2">
                 <List className="w-5 h-5" />
                 Upgrade Package
               </button>
