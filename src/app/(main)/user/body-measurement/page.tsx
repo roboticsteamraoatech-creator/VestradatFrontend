@@ -425,23 +425,31 @@ const BodyMeasurementPage = () => {
   };
 
   // Get individual body part measurements from all sections
+  // Get individual body part measurements from all sections with loose matching
   const getBodyPartMeasurement = (item: Measurement, bodyPartName: string): string => {
     let measurement: ApiMeasurementData | undefined;
     
-    // Search through all sections for the specific body part
+    // Search through all sections for the specific body part using a flexible partial match
     item.sections?.forEach((section: MeasurementSection) => {
-      const found = section.measurements?.find((m: ApiMeasurementData) => 
-        m.bodyPartName?.toLowerCase() === bodyPartName.toLowerCase()
-      );
+      const found = section.measurements?.find((m: ApiMeasurementData) => {
+        const currentName = m.bodyPartName?.toLowerCase() || '';
+        const targetName = bodyPartName.toLowerCase();
+        
+        // Matches if it's an exact match OR if the API name includes our column name (e.g., 'shoulder' in 'shoulders')
+        return currentName === targetName || currentName.includes(targetName) || targetName.includes(currentName);
+      });
+      
       if (found) {
         measurement = found;
       }
     });
     
+    // Process and return the value safely
     if (measurement && measurement.size !== undefined && measurement.size !== null) {
       const size = typeof measurement.size === 'string' ? parseFloat(measurement.size) : measurement.size;
       return isNaN(size) ? '--' : size.toFixed(2);
     }
+    
     return '--';
   };
 
