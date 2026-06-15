@@ -94,7 +94,7 @@ const OneTimeCodePage = () => {
   return (
     <div style={{ fontFamily: "'Manrope', sans-serif" }}>
       {/* Added pt-24 to push content down from the top */}
-      <div className="ml-0 md:ml-[350px] pt-24 p-4 md:p-8 bg-gray-50 min-h-screen">
+      <div className="px-4 sm:px-6 lg:px-8 py-8 bg-gray-50 min-h-screen">
         <div className="max-w-3xl mx-auto">
           {/* Back Button */}
           <button

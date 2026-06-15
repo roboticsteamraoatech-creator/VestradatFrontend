@@ -1,6 +1,6 @@
-﻿import { 
-import { BASE_URL } from '@/config/api';
-  PlatformCommission, 
+﻿import { BASE_URL } from '@/config/api';
+import {
+  PlatformCommission,
   CreatePlatformCommissionRequest, 
   UpdatePlatformCommissionRequest, 
   GetPlatformCommissionsParams 

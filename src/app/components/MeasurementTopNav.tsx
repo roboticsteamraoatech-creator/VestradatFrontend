@@ -92,7 +92,7 @@ export const MeasurementTopNav: React.FC<MeasurementTopNavProps> = ({
   }
 
   return (
-    <>
+    <div>
       <style jsx>{`
         @import url('https://fonts.googleapis.com/css2?family=Manrope:wght@300;400;500;600;700&display=swap');
         .manrope { font-family: 'Manrope', sans-serif; }
@@ -100,26 +100,20 @@ export const MeasurementTopNav: React.FC<MeasurementTopNavProps> = ({
         /* Mobile-first responsive design */
         .measurement-card {
           position: relative;
-          width: 100%;
+          width: auto;
           padding: 16px;
           background: white;
           border-radius: 12px;
           box-shadow: 0 1px 3px rgba(0, 0, 0, 0.1);
           margin: 16px;
-          z-index: 20;
         }
-        
+
         @media (min-width: 768px) {
           .measurement-card {
-            position: absolute;
-            width: 958px;
-            height: 129px;
-            top: 80px;
-            left: 401px;
             border-radius: 20px;
-            padding: 24px;
+            padding: 20px 24px;
             box-shadow: 0 2px 8px rgba(0, 0, 0, 0.1);
-            margin: 0;
+            margin: 16px 24px;
           }
         }
         
@@ -182,16 +176,12 @@ export const MeasurementTopNav: React.FC<MeasurementTopNavProps> = ({
         }
       `}</style>
 
-      {/* User TopBar - Hidden on mobile measurement creation */}
-      <div className="hidden md:block">
-        <UserTopBar />
-      </div>
-
       <div className="measurement-card">
-        <div className="flex flex-col justify-center h-full">
-          {/* Current Body Measurement Label */}
+        <div className="flex items-center justify-between h-full gap-4">
+          {/* Left: title + measurements */}
+          <div className="flex flex-col justify-center flex-1 min-w-0">
           <div className="manrope text-xs md:text-sm text-gray-400 mb-2 md:mb-3">{title}</div>
-          
+
           {/* Measurement Grid */}
           <div className="measurement-grid">
             {displayMeasurements.map((item, index) => (
@@ -239,31 +229,14 @@ export const MeasurementTopNav: React.FC<MeasurementTopNavProps> = ({
               </button>
             )}
           </div>
-        </div>
-        
-        {/* Search Input - Only show on desktop */}
-        {onSearch && (
-          <div className="search-container hidden md:block">
-            <div className="relative">
-              <input
-                type="text"
-                placeholder="Search..."
-                className="search-input manrope"
-                value={localSearchTerm}
-                onChange={handleSearchChange}
-              />
-              <svg 
-                className="search-icon" 
-                viewBox="0 0 16 16" 
-                fill="none" 
-                xmlns="http://www.w3.org/2000/svg"
-              >
-                <path d="M14.5 14.5L11.5 11.5M12.5 7.5C12.5 10.2614 10.2614 12.5 7.5 12.5C4.73858 12.5 2.5 10.2614 2.5 7.5C2.5 4.73858 4.73858 2.5 7.5 2.5C10.2614 2.5 12.5 4.73858 12.5 7.5Z" stroke="#6E6E6E" strokeWidth="1.5" strokeLinecap="round" strokeLinejoin="round"/>
-              </svg>
-            </div>
           </div>
-        )}
+
+          {/* Right: Search / Bell / Avatar — desktop only, inside the card */}
+          <div className="hidden md:flex items-center flex-shrink-0">
+            <UserTopBar />
+          </div>
+        </div>
       </div>
-    </>
+    </div>
   );
 };

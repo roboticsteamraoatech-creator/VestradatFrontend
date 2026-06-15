@@ -2,9 +2,9 @@
 
 import React, { useState, useEffect } from 'react';
 import { useAuthContext } from '@/AuthContext';
-import { 
 import { BASE_URL } from '@/config/api';
-  Search, 
+import {
+  Search,
   Package, 
   Calendar, 
   Users, 

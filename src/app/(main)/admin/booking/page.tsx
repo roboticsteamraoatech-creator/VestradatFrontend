@@ -786,8 +786,8 @@ const AdminBookingsPage: React.FC = () => {
                   </tr>
                 )}
 
-                {activeTab !== 'accepted' && bookings.map((booking) => (
-                  <tr key={booking._id} className="hover:bg-gray-50">
+                {activeTab !== 'accepted' && bookings.map((booking, index) => (
+                  <tr key={booking._id || booking.bookingId || index} className="hover:bg-gray-50">
                     <td className="px-4 py-3 text-sm font-mono text-xs">{booking.bookingId}</td>
                     <td className="px-4 py-3 text-sm">{booking.serviceName}</td>
                     <td className="px-4 py-3 text-sm">
@@ -802,7 +802,7 @@ const AdminBookingsPage: React.FC = () => {
                     <td className="px-4 py-3 text-sm">
                       <span className="inline-flex items-center gap-1 text-xs">
                         <MapPin className="w-3 h-3" />
-                        {getLocationLabel(booking.location.type)}
+                        {getLocationLabel(booking.location?.type)}
                       </span>
                     </td>
                     <td className="px-4 py-3">

@@ -801,7 +801,7 @@ const EditUserForm = () => {
         * { font-family: 'Manrope', sans-serif; }
       `}</style>
 
-      <div className="ml-0 md:ml-[350px] pt-24 md:pt-32 p-4 md:p-8">
+      <div className="px-4 sm:px-6 lg:px-8 py-8">
         {/* Header */}
         <div className="mb-8">
           <button

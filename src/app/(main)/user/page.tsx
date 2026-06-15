@@ -446,7 +446,7 @@ const Page = () => {
       </div>
 
       {/* Overview Section - Responsive */}
-      <div className="px-4 pt-4 md:pt-0 md:absolute md:w-[958px] md:top-[271px] md:left-[401px]">
+      <div className="px-4 md:px-6 py-4">
         <h2 className="manrope text-xl md:text-2xl font-semibold text-gray-800 mb-4 md:mb-0">Overview</h2>
 
         {/* Four Cards Container - Responsive Grid */}
@@ -609,7 +609,7 @@ const Page = () => {
       </div>
 
       {/* Filter Tabs - Below cards on mobile, top of table on desktop */}
-      <div className="px-4 md:px-0 md:absolute md:w-[958px] md:top-[453px] md:left-[401px] mt-4 md:mt-0">
+      <div className="px-4 md:px-6 mt-4">
         <div className="flex gap-2 md:gap-4 overflow-x-auto pb-2">
           <button
             className={`manrope px-4 py-2 rounded-full text-sm font-medium whitespace-nowrap ${
@@ -665,7 +665,7 @@ const Page = () => {
       </div>
 
       {/* Total Summary Section - Responsive */}
-      <div className="mx-4 mb-20 md:mb-6 bg-white shadow-sm rounded-[20px] p-4 md:p-6 md:absolute md:w-[958px] md:top-[506px] md:left-[401px] md:mx-0">
+      <div className="mx-4 md:mx-6 mb-8 bg-white shadow-sm rounded-[20px] p-4 md:p-6">
         {/* Total Summary and Export Container */}
         <div className="flex items-center justify-between mb-4 md:mb-6">
           {/* Total Summary Text */}

@@ -180,7 +180,7 @@ const ServiceProviderAssignmentPage: React.FC = () => {
   }
 
   return (
-    <div className="ml-0 md:ml-[350px] pt-8 md:pt-8 p-4 md:p-8 min-h-screen bg-gray-50">
+    <div className="pt-8 p-4 md:p-8 min-h-screen bg-gray-50">
       <div className="max-w-7xl mx-auto">
         {/* Header */}
         <div className="mb-8 flex items-start justify-between">

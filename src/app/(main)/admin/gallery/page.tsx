@@ -1,801 +1,615 @@
-"use client";
+'use client';
 
-import React, { useState, useEffect } from 'react';
+import React, { useState, useEffect, useCallback } from 'react';
 import { useRouter } from 'next/navigation';
-import { 
-  Plus, 
-  Search, 
-  Edit, 
-  Trash2, 
-  Eye, 
+import {
+  Plus,
+  Search,
+  Edit,
+  Trash2,
   Image as ImageIcon,
-  Video,
+  Filter,
+  X,
+  ChevronLeft,
+  ChevronRight,
+  Calendar,
   Tag,
-  BarChart3,
-  MapPin,
-  CheckCircle,
-  XCircle,
-  Package,
-  Briefcase,
-  List
+  Loader2,
+  BookOpen,
 } from 'lucide-react';
-import DeleteConfirmationModal from '@/app/components/DeleteConfirmationModal';
-import { GalleryService } from '@/services/GalleryService';
-import { useAuthContext } from '@/AuthContext';
+import { GalleryService } from '@/services/gallery-sub-service';
 
 interface GalleryItem {
   _id: string;
-  name: string;
-  description: string;
-  category: string;
-  categoryId: string;
-  categoryName?: string;
-  industryId: string;
-  industryName?: string;
+  id?: string;
+  name?: string;
+  description?: string;
   itemType: 'product' | 'service';
-  sku?: string;
-  upc?: string;
-  platformUniqueCode?: string;
-  totalAvailableQuantity: number;
-  priceInDollars: number;
-  discountPercentage: number;
-  upfrontPaymentPercentage?: number;
-  upfrontPaymentAmount?: number;
+  categoryName?: string;
+  category?: string;
+  categoryId?: string;
   actualAmount?: number;
-  platformChargePercentage: number;
-  commissionName?: string;
-  startDate: string;
-  startTime: string;
-  endDate: string;
-  endTime: string;
-  visibilityToPublic: boolean;
-  notes?: string;
-  locationIndex: number;
+  priceInDollars?: number;
+  discountPercentage?: number;
+  platformChargePercentage?: number;
   imageUrl?: string;
-  videoUrl?: string;
-  images: string[];
-  videos: string[];
-  createdAt: string;
-  updatedAt: string;
+  image?: string;
+  picture?: string;
+  photo?: string;
+  images?: { main?: string; [key: number]: string } | string[];
+  media?: { url?: string };
+  canBook?: boolean;
 }
 
-interface LocationUsage {
-  locationIndex: number;
-  locationName: string;
-  images: number;
-  maxImages: number;
-  videos: number;
-  maxVideos: number;
-  verified: boolean;
+interface ApiCategory {
+  id?: string;
+  _id?: string;
+  name: string;
 }
 
-const GalleryManagementPage = () => {
+interface Filters {
+  categoryId: string;
+  minPrice: string;
+  maxPrice: string;
+}
+
+const formatCurrency = (amount: number) =>
+  new Intl.NumberFormat('en-NG', {
+    style: 'currency',
+    currency: 'NGN',
+    minimumFractionDigits: 0,
+  }).format(amount);
+
+const getItemImage = (item: GalleryItem): string | null => {
+  if (item.imageUrl) return item.imageUrl;
+  if (item.image) return item.image;
+  if (item.picture) return item.picture;
+  if (item.photo) return item.photo;
+  if (item.images) {
+    if (Array.isArray(item.images)) {
+      if ((item.images as string[]).length > 0) return (item.images as string[])[0];
+    } else {
+      const imgObj = item.images as { main?: string; [key: number]: string };
+      if (imgObj.main) return imgObj.main;
+      const keys = Object.keys(imgObj).filter((k) => k !== 'main');
+      if (keys.length > 0) return imgObj[Number(keys[0])];
+    }
+  }
+  if (item.media?.url) return item.media.url;
+  return null;
+};
+
+const getItemPrice = (item: GalleryItem): number => {
+  if (item.actualAmount !== undefined) return item.actualAmount;
+  const base = item.priceInDollars || 0;
+  const discount = item.discountPercentage || 0;
+  const charge = item.platformChargePercentage || 0;
+  return base - (base * discount) / 100 + (base * charge) / 100;
+};
+
+const SkeletonCard = () => (
+  <div className="bg-white rounded-xl border border-gray-100 shadow-sm overflow-hidden animate-pulse">
+    <div className="bg-gray-200 h-40 w-full" />
+    <div className="p-4 space-y-2">
+      <div className="bg-gray-200 h-4 rounded w-3/4" />
+      <div className="bg-gray-200 h-3 rounded w-1/2" />
+      <div className="bg-gray-200 h-3 rounded w-1/3" />
+    </div>
+  </div>
+);
+
+export default function GalleryManagementScreen() {
   const router = useRouter();
-  const { token } = useAuthContext();
-  
-  console.log('Gallery page: Component mounted, token available:', !!token);
-  const [items, setItems] = useState<GalleryItem[]>([]);
-  const [locationUsage, setLocationUsage] = useState<LocationUsage[]>([]);
-  const [categories, setCategories] = useState<string[]>([]);
-  const [industries, setIndustries] = useState<string[]>([]);
-  const [loading, setLoading] = useState(true);
-  const [searchTerm, setSearchTerm] = useState('');
-  const [selectedCategory, setSelectedCategory] = useState('');
-  const [selectedIndustry, setSelectedIndustry] = useState('');
-  const [selectedLocation, setSelectedLocation] = useState('');
-  const [selectedItemType, setSelectedItemType] = useState<'product' | 'service' | ''>('');
+  const token =
+    typeof window !== 'undefined'
+      ? localStorage.getItem('userToken') ||
+        sessionStorage.getItem('userToken') ||
+        ''
+      : '';
 
-  const [showDeleteModal, setShowDeleteModal] = useState(false);
-  const [selectedItem, setSelectedItem] = useState<GalleryItem | null>(null);
-  const [deleteLoading, setDeleteLoading] = useState(false);
+  const [items, setItems] = useState<GalleryItem[]>([]);
+  const [categories, setCategories] = useState<ApiCategory[]>([]);
+  const [loading, setLoading] = useState(true);
   const [currentPage, setCurrentPage] = useState(1);
   const [totalPages, setTotalPages] = useState(1);
   const [totalItems, setTotalItems] = useState(0);
-  const [sortBy, setSortBy] = useState('createdAt');
-  const [sortOrder, setSortOrder] = useState<'asc' | 'desc'>('desc');
-  const [totalProductCount, setTotalProductCount] = useState(0);
-  const [totalServiceCount, setTotalServiceCount] = useState(0);
-  const [mediaUsageVideos, setMediaUsageVideos] = useState<number | null>(null);
 
-  // Fetch server-side product/service totals and media usage (Bugs 7/8/9)
-  const fetchTypeCounts = async () => {
-    if (!token) return;
-    try {
-      const [productResult, serviceResult, mediaResult] = await Promise.all([
-        GalleryService.getGalleryItems(token, 1, 1, undefined, undefined, undefined, undefined, undefined, undefined, 'createdAt', 'desc', undefined, undefined, undefined, undefined, 'product'),
-        GalleryService.getGalleryItems(token, 1, 1, undefined, undefined, undefined, undefined, undefined, undefined, 'createdAt', 'desc', undefined, undefined, undefined, undefined, 'service'),
-        GalleryService.getMediaUsage(token),
-      ]);
-      if (productResult.success) setTotalProductCount(productResult.data?.pagination?.total || 0);
-      if (serviceResult.success) setTotalServiceCount(serviceResult.data?.pagination?.total || 0);
-      if (mediaResult.success && mediaResult.data) setMediaUsageVideos(mediaResult.data.currentVideos ?? null);
-    } catch (e) {
-      // Non-critical: fall back to page-level counts
-    }
-  };
+  // Filter modal state
+  const [showFilterModal, setShowFilterModal] = useState(false);
+  const [pendingFilters, setPendingFilters] = useState<Filters>({
+    categoryId: '',
+    minPrice: '',
+    maxPrice: '',
+  });
+  const [appliedFilters, setAppliedFilters] = useState<Filters>({
+    categoryId: '',
+    minPrice: '',
+    maxPrice: '',
+  });
 
-  // Fetch gallery items
-  const fetchGalleryItems = async () => {
-    if (!token) return;
-    
+  // Search
+  const [search, setSearch] = useState('');
+  const [searchInput, setSearchInput] = useState('');
+
+  const [fetchError, setFetchError] = useState<string | null>(null);
+
+  // Delete confirm
+  const [deleteTarget, setDeleteTarget] = useState<GalleryItem | null>(null);
+  const [deleteLoading, setDeleteLoading] = useState(false);
+
+  const fetchCategories = useCallback(async () => {
+    const res = await GalleryService.getCategories(token);
+    if (res.success && res.data) setCategories((res.data as unknown) as ApiCategory[]);
+  }, [token]);
+
+  const fetchItems = useCallback(async () => {
+    setLoading(true);
+    setFetchError(null);
     try {
-      setLoading(true);
-      console.log('Gallery page: Fetching gallery items');
-      
-      const result = await GalleryService.getGalleryItems(
-        token,
-        currentPage,
-        10,
-        selectedCategory || undefined,
-        searchTerm || undefined,
-        undefined,
-        undefined,
-        undefined,
-        undefined,
-        sortBy,
-        sortOrder,
-        undefined,
-        selectedIndustry || undefined,
-        undefined,
-        undefined,
-        selectedItemType === '' ? undefined : selectedItemType
-      );
-      
-      if (result.success && result.data) {
-        setItems(result.data.items || []);
-        setLocationUsage(result.data.locationUsage || []);
-        setTotalPages(result.data.pagination?.totalPages || 1);
-        setTotalItems(result.data.pagination?.total || 0);
-        
-        // Extract unique categories and industries from items
-        if (result.data.items && result.data.items.length > 0) {
-          const uniqueCategories = [...new Set(result.data.items.map(item => item.categoryName || item.category))];
-          const uniqueIndustries = [...new Set(result.data.items.map(item => item.industryName || '').filter(Boolean))];
-          setCategories(uniqueCategories);
-          setIndustries(uniqueIndustries);
-        } else {
-          setCategories([]);
-          setIndustries([]);
+      const params: Parameters<typeof GalleryService.getGalleryItems>[1] = {
+        page: currentPage,
+        limit: 12,
+        sortBy: 'createdAt',
+        sortOrder: 'desc',
+      };
+      if (search) params.categoryId = undefined;
+      if (appliedFilters.categoryId) params.categoryId = appliedFilters.categoryId;
+      if (appliedFilters.minPrice) params.minPrice = Number(appliedFilters.minPrice);
+      if (appliedFilters.maxPrice) params.maxPrice = Number(appliedFilters.maxPrice);
+
+      const res = await GalleryService.getGalleryItems(token, params);
+      if (res.success && res.data) {
+        let fetchedItems: GalleryItem[] = ((res.data.items || []) as unknown) as GalleryItem[];
+        if (search) {
+          const s = search.toLowerCase();
+          fetchedItems = fetchedItems.filter(
+            (it) =>
+              (it.name || it.description || '').toLowerCase().includes(s) ||
+              (it.categoryName || it.category || '').toLowerCase().includes(s)
+          );
         }
+        setItems(fetchedItems);
+        setTotalPages(res.data.pagination?.totalPages || 1);
+        setTotalItems(res.data.pagination?.total || fetchedItems.length);
       } else {
-        console.error('Failed to fetch gallery items:', result.message);
+        setItems([]);
+        setFetchError(res.message || 'Failed to load gallery items.');
       }
-    } catch (error: any) {
-      console.error('Error fetching gallery items:', error);
     } finally {
       setLoading(false);
     }
-  };
-
-  // Update categories when items change
-  useEffect(() => {
-    if (items.length > 0) {
-      const uniqueCategories = [...new Set(items.map(item => item.categoryName || item.category))];
-      const uniqueIndustries = [...new Set(items.map(item => item.industryName || '').filter(Boolean))];
-      setCategories(uniqueCategories);
-      setIndustries(uniqueIndustries);
-    }
-  }, [items]);
+  }, [token, currentPage, appliedFilters, search]);
 
   useEffect(() => {
-    if (token) {
-      fetchGalleryItems();
-    }
-  }, [token, currentPage, sortBy, sortOrder, searchTerm, selectedCategory, selectedIndustry, selectedLocation, selectedItemType]);
+    fetchCategories();
+  }, [fetchCategories]);
 
   useEffect(() => {
-    if (token) {
-      fetchTypeCounts();
-    }
-  }, [token]);
+    fetchItems();
+  }, [fetchItems]);
 
-  const handleCreateItem = () => {
-    router.push('/admin/gallery/create');
+  // Search debounce
+  useEffect(() => {
+    const t = setTimeout(() => {
+      setSearch(searchInput);
+      setCurrentPage(1);
+    }, 400);
+    return () => clearTimeout(t);
+  }, [searchInput]);
+
+  const openFilterModal = () => {
+    setPendingFilters({ ...appliedFilters });
+    setShowFilterModal(true);
   };
 
-  const handleEditItem = (item: GalleryItem) => {
-    router.push(`/admin/gallery/edit/${item._id}`);
+  const applyFilters = () => {
+    setAppliedFilters({ ...pendingFilters });
+    setCurrentPage(1);
+    setShowFilterModal(false);
   };
 
-  const handleViewItem = (item: GalleryItem) => {
-    router.push(`/admin/gallery/view/${item._id}`);
+  const removeFilter = (key: keyof Filters) => {
+    const updated = { ...appliedFilters, [key]: '' };
+    setAppliedFilters(updated);
+    setCurrentPage(1);
   };
 
-  const handleDeleteItem = (item: GalleryItem) => {
-    setSelectedItem(item);
-    setShowDeleteModal(true);
-  };
-
-  const confirmDeleteItem = async () => {
-    if (!selectedItem || !token) return;
-
+  const handleDelete = async () => {
+    if (!deleteTarget) return;
     setDeleteLoading(true);
-    try {
-      console.log('Gallery page: Deleting item', selectedItem._id);
-      const result = await GalleryService.deleteGalleryItem(token, selectedItem._id);
-      
-      if (result.success) {
-        fetchGalleryItems();
-        setShowDeleteModal(false);
-        setSelectedItem(null);
-      } else {
-        alert(result.message || 'Failed to delete gallery item');
-      }
-    } catch (error: any) {
-      console.error('Error deleting gallery item:', error);
-      alert(error.message || 'An error occurred while deleting the gallery item');
-    } finally {
-      setDeleteLoading(false);
-    }
-  };
-
-  const handleSearch = (e: React.ChangeEvent<HTMLInputElement>) => {
-    setSearchTerm(e.target.value);
-    setCurrentPage(1);
-  };
-
-  const handleCategoryFilter = (category: string) => {
-    setSelectedCategory(category);
-    setCurrentPage(1);
-  };
-
-  const handleIndustryFilter = (industry: string) => {
-    setSelectedIndustry(industry);
-    setCurrentPage(1);
-  };
-
-  const handleLocationFilter = (locationIndex: string) => {
-    setSelectedLocation(locationIndex);
-    setCurrentPage(1);
-  };
-
-  const handleItemTypeFilter = (itemType: string) => {
-    if (itemType === 'product' || itemType === 'service') {
-      setSelectedItemType(itemType);
+    const id = deleteTarget._id || deleteTarget.id || '';
+    const res = await GalleryService.deleteGalleryItem(token, id);
+    setDeleteLoading(false);
+    if (res.success) {
+      setDeleteTarget(null);
+      fetchItems();
     } else {
-      setSelectedItemType('');
+      alert(res.message || 'Failed to delete item');
     }
-    setCurrentPage(1);
   };
 
-  const clearFilters = () => {
-    setSearchTerm('');
-    setSelectedCategory('');
-    setSelectedIndustry('');
-    setSelectedLocation('');
-    setSelectedItemType('');
-    setCurrentPage(1);
-  };
+  const getCategoryName = (id: string) =>
+    categories.find((c) => (c._id || c.id) === id)?.name || id;
 
-  const calculateActualAmount = (price: number, discount: number, platformCharge: number) => {
-    return price - (price * discount / 100) + (price * platformCharge / 100);
-  };
-
-  const getLocationName = (locationIndex: number) => {
-    const location = locationUsage.find(loc => loc.locationIndex === locationIndex);
-    return location?.locationName || `Location ${locationIndex + 1}`;
-  };
-
-  const getCategoryCount = (categoryName: string) => {
-    return items.filter(item => (item.categoryName || item.category) === categoryName).length;
-  };
-
-  const getIndustryCount = (industryName: string) => {
-    return items.filter(item => item.industryName === industryName).length;
-  };
-
-  const getItemTypeCount = (itemType: 'product' | 'service') => {
-    return items.filter(item => item.itemType === itemType).length;
-  };
-
-  const getLocationUsageStats = () => {
-    const totalImages = locationUsage.reduce((sum, loc) => sum + loc.images, 0);
-    const totalVideos = locationUsage.reduce((sum, loc) => sum + loc.videos, 0);
-    const verifiedLocations = locationUsage.filter(loc => loc.verified).length;
-    return { totalImages, totalVideos, verifiedLocations };
-  };
-
-  const locationStats = getLocationUsageStats();
-
-  // Use server-side totals when available, fall back to page-level counts
-  const productCount = totalProductCount || getItemTypeCount('product');
-  const serviceCount = totalServiceCount || getItemTypeCount('service');
-
-  const formatNaira = (amount: number) => {
-    return new Intl.NumberFormat('en-NG', {
-      style: 'currency',
-      currency: 'NGN',
-      minimumFractionDigits: 0,
-      maximumFractionDigits: 0,
-    }).format(amount);
-  };
-
-  if (loading && items.length === 0) {
-    return (
-      <div className="flex items-center justify-center h-64">
-        <div className="animate-spin rounded-full h-12 w-12 border-b-2 border-purple-600"></div>
-      </div>
-    );
-  }
+  const activeFilterCount = [
+    appliedFilters.categoryId,
+    appliedFilters.minPrice,
+    appliedFilters.maxPrice,
+  ].filter(Boolean).length;
 
   return (
     <div className="min-h-screen bg-gray-50">
-      {/* Main content shifted right to account for sidebar */}
-      <div className="ml-0 lg:ml-[280px] transition-all duration-300">
-        <div className="max-w-7xl mx-auto px-4 sm:px-6 lg:px-8 py-8">
-          {/* Header */}
-          <div className="mb-8">
-            <div className="flex flex-col sm:flex-row sm:items-center sm:justify-between gap-4">
-              <div>
-                <h1 className="text-2xl sm:text-3xl font-bold text-gray-900">Gallery Management</h1>
-                <p className="text-gray-600 mt-2">Manage your gallery items and locations</p>
-              </div>
+      <div className="px-4 sm:px-6 lg:px-8 py-8 max-w-7xl mx-auto">
+        {/* Server error banner */}
+        {fetchError && (
+          <div className="mb-6 flex items-start gap-3 rounded-lg border border-red-200 bg-red-50 px-4 py-3 text-sm text-red-700">
+            <span className="flex-1">{fetchError}</span>
+            <button
+              onClick={fetchItems}
+              className="shrink-0 font-medium underline hover:no-underline"
+            >
+              Retry
+            </button>
+          </div>
+        )}
+
+        {/* Header */}
+        <div className="flex flex-col sm:flex-row sm:items-center sm:justify-between gap-4 mb-6">
+          <div>
+            <h1 className="text-2xl sm:text-3xl font-bold text-gray-900">Gallery Management</h1>
+            <p className="text-gray-500 text-sm mt-1">
+              {totalItems} item{totalItems !== 1 ? 's' : ''} total
+            </p>
+          </div>
+          <div className="flex items-center gap-2">
+            <button
+              onClick={openFilterModal}
+              className={`inline-flex items-center gap-2 px-4 py-2 rounded-lg border text-sm font-medium transition-colors ${
+                activeFilterCount > 0
+                  ? 'bg-purple-50 border-purple-300 text-purple-700'
+                  : 'bg-white border-gray-300 text-gray-700 hover:bg-gray-50'
+              }`}
+            >
+              <Filter className="w-4 h-4" />
+              Filters
+              {activeFilterCount > 0 && (
+                <span className="bg-purple-600 text-white text-xs rounded-full w-5 h-5 flex items-center justify-center">
+                  {activeFilterCount}
+                </span>
+              )}
+            </button>
+          </div>
+        </div>
+
+        {/* Search */}
+        <div className="relative mb-4">
+          <Search className="absolute left-3 top-1/2 -translate-y-1/2 w-4 h-4 text-gray-400" />
+          <input
+            type="text"
+            value={searchInput}
+            onChange={(e) => setSearchInput(e.target.value)}
+            placeholder="Search gallery items..."
+            className="w-full pl-9 pr-4 py-2.5 bg-white border border-gray-300 rounded-lg text-sm focus:outline-none focus:ring-2 focus:ring-purple-500 focus:border-transparent"
+          />
+        </div>
+
+        {/* Active filter chips */}
+        {activeFilterCount > 0 && (
+          <div className="flex flex-wrap gap-2 mb-4">
+            {appliedFilters.categoryId && (
+              <span className="inline-flex items-center gap-1 px-3 py-1 bg-purple-100 text-purple-800 text-xs font-medium rounded-full">
+                <Tag className="w-3 h-3" />
+                {getCategoryName(appliedFilters.categoryId)}
+                <button onClick={() => removeFilter('categoryId')} className="ml-1 hover:text-purple-600">
+                  <X className="w-3 h-3" />
+                </button>
+              </span>
+            )}
+            {appliedFilters.minPrice && (
+              <span className="inline-flex items-center gap-1 px-3 py-1 bg-green-100 text-green-800 text-xs font-medium rounded-full">
+                Min {formatCurrency(Number(appliedFilters.minPrice))}
+                <button onClick={() => removeFilter('minPrice')} className="ml-1 hover:text-green-600">
+                  <X className="w-3 h-3" />
+                </button>
+              </span>
+            )}
+            {appliedFilters.maxPrice && (
+              <span className="inline-flex items-center gap-1 px-3 py-1 bg-orange-100 text-orange-800 text-xs font-medium rounded-full">
+                Max {formatCurrency(Number(appliedFilters.maxPrice))}
+                <button onClick={() => removeFilter('maxPrice')} className="ml-1 hover:text-orange-600">
+                  <X className="w-3 h-3" />
+                </button>
+              </span>
+            )}
+          </div>
+        )}
+
+        {/* Grid */}
+        {loading ? (
+          <div className="grid grid-cols-1 sm:grid-cols-2 md:grid-cols-3 lg:grid-cols-4 gap-4">
+            {Array.from({ length: 8 }).map((_, i) => (
+              <SkeletonCard key={i} />
+            ))}
+          </div>
+        ) : items.length === 0 ? (
+          <div className="flex flex-col items-center justify-center py-20 bg-white rounded-xl border border-dashed border-gray-200">
+            <div className="p-4 bg-gray-100 rounded-full mb-4">
+              <ImageIcon className="w-8 h-8 text-gray-400" />
+            </div>
+            <h3 className="text-lg font-semibold text-gray-800 mb-1">No items found</h3>
+            <p className="text-gray-500 text-sm mb-6 text-center max-w-xs">
+              {search || activeFilterCount > 0
+                ? 'Try adjusting your search or filters.'
+                : 'Get started by creating your first gallery item.'}
+            </p>
+            {!search && activeFilterCount === 0 && (
               <button
-                onClick={handleCreateItem}
-                className="inline-flex items-center justify-center gap-2 bg-purple-600 text-white px-4 py-2 rounded-lg hover:bg-purple-700 transition-colors shadow-sm w-full sm:w-auto"
+                onClick={() => router.push('/admin/gallery/create')}
+                className="inline-flex items-center gap-2 bg-purple-600 text-white px-4 py-2 rounded-lg hover:bg-purple-700 transition-colors text-sm font-medium"
               >
-                <Plus className="w-5 h-5" />
-                <span>Create Item</span>
+                <Plus className="w-4 h-4" />
+                Create Item
+              </button>
+            )}
+          </div>
+        ) : (
+          <div className="grid grid-cols-1 sm:grid-cols-2 md:grid-cols-3 lg:grid-cols-4 gap-4">
+            {items.map((item) => {
+              const imgSrc = getItemImage(item);
+              const price = getItemPrice(item);
+              const name = item.name || item.description || 'Unnamed Item';
+              const category = item.categoryName || item.category || '';
+              const itemId = item._id || item.id || '';
+              return (
+                <div
+                  key={itemId}
+                  className="bg-white rounded-xl border border-gray-100 shadow-sm overflow-hidden hover:shadow-md transition-shadow group"
+                >
+                  {/* Image */}
+                  <div className="relative h-40 bg-gray-100">
+                    {imgSrc ? (
+                      <img
+                        src={imgSrc}
+                        alt={name}
+                        className="w-full h-full object-cover"
+                      />
+                    ) : (
+                      <div className="w-full h-full flex items-center justify-center">
+                        <ImageIcon className="w-10 h-10 text-gray-300" />
+                      </div>
+                    )}
+                    {/* Type badge */}
+                    <span
+                      className={`absolute top-2 left-2 text-xs font-semibold px-2 py-0.5 rounded-full ${
+                        item.itemType === 'product'
+                          ? 'bg-blue-100 text-blue-800'
+                          : 'bg-indigo-100 text-indigo-800'
+                      }`}
+                    >
+                      {item.itemType === 'product' ? 'Product' : 'Service'}
+                    </span>
+                  </div>
+                  {/* Info */}
+                  <div className="p-3">
+                    <h3 className="font-semibold text-gray-900 text-sm truncate">{name}</h3>
+                    {category && (
+                      <p className="text-xs text-gray-500 mt-0.5 truncate flex items-center gap-1">
+                        <Tag className="w-3 h-3 flex-shrink-0" />
+                        {category}
+                      </p>
+                    )}
+                    <p className="text-sm font-bold text-purple-700 mt-1">
+                      {formatCurrency(price)}
+                    </p>
+                    {/* Actions */}
+                    <div className="flex items-center gap-1 mt-3 pt-2 border-t border-gray-100">
+                      <button
+                        onClick={() => router.push(`/admin/gallery/edit/${itemId}`)}
+                        className="flex-1 inline-flex items-center justify-center gap-1 text-xs text-gray-600 hover:text-green-700 hover:bg-green-50 rounded-lg py-1.5 transition-colors"
+                        title="Edit"
+                      >
+                        <Edit className="w-3.5 h-3.5" />
+                        Edit
+                      </button>
+                      {item.itemType === 'service' && (
+                        <button
+                          onClick={() => router.push(`/admin/booking/create?serviceId=${itemId}`)}
+                          className="flex-1 inline-flex items-center justify-center gap-1 text-xs text-gray-600 hover:text-purple-700 hover:bg-purple-50 rounded-lg py-1.5 transition-colors"
+                          title="Book"
+                        >
+                          <BookOpen className="w-3.5 h-3.5" />
+                          Book
+                        </button>
+                      )}
+                      <button
+                        onClick={() => setDeleteTarget(item)}
+                        className="flex-1 inline-flex items-center justify-center gap-1 text-xs text-gray-600 hover:text-red-700 hover:bg-red-50 rounded-lg py-1.5 transition-colors"
+                        title="Delete"
+                      >
+                        <Trash2 className="w-3.5 h-3.5" />
+                        Delete
+                      </button>
+                    </div>
+                  </div>
+                </div>
+              );
+            })}
+          </div>
+        )}
+
+        {/* Pagination */}
+        {totalPages > 1 && (
+          <div className="flex flex-col sm:flex-row items-center justify-between mt-6 gap-3">
+            <p className="text-sm text-gray-500">
+              Page {currentPage} of {totalPages} &bull; {totalItems} items
+            </p>
+            <div className="flex items-center gap-2">
+              <button
+                onClick={() => setCurrentPage((p) => Math.max(1, p - 1))}
+                disabled={currentPage === 1}
+                className="p-2 rounded-lg border border-gray-300 disabled:opacity-40 disabled:cursor-not-allowed hover:bg-gray-50 transition-colors"
+              >
+                <ChevronLeft className="w-4 h-4" />
+              </button>
+              {Array.from({ length: Math.min(5, totalPages) }, (_, i) => {
+                let pg: number;
+                if (totalPages <= 5) pg = i + 1;
+                else if (currentPage <= 3) pg = i + 1;
+                else if (currentPage >= totalPages - 2) pg = totalPages - 4 + i;
+                else pg = currentPage - 2 + i;
+                return (
+                  <button
+                    key={pg}
+                    onClick={() => setCurrentPage(pg)}
+                    className={`min-w-[36px] h-9 rounded-lg text-sm font-medium transition-colors ${
+                      currentPage === pg
+                        ? 'bg-purple-600 text-white'
+                        : 'border border-gray-300 text-gray-700 hover:bg-gray-50'
+                    }`}
+                  >
+                    {pg}
+                  </button>
+                );
+              })}
+              <button
+                onClick={() => setCurrentPage((p) => Math.min(totalPages, p + 1))}
+                disabled={currentPage === totalPages}
+                className="p-2 rounded-lg border border-gray-300 disabled:opacity-40 disabled:cursor-not-allowed hover:bg-gray-50 transition-colors"
+              >
+                <ChevronRight className="w-4 h-4" />
               </button>
             </div>
           </div>
+        )}
+      </div>
 
-          {/* Stats Overview */}
-          <div className="grid grid-cols-2 sm:grid-cols-3 lg:grid-cols-7 gap-3 mb-8">
-            <div className="bg-white rounded-xl shadow-sm p-4 border border-gray-100 hover:shadow-md transition-shadow">
-              <div className="flex items-center">
-                <div className="p-2 rounded-lg bg-purple-100">
-                  <BarChart3 className="w-5 h-5 text-purple-600" />
-                </div>
-                <div className="ml-3">
-                  <p className="text-xs font-medium text-gray-600">Total Items</p>
-                  <p className="text-xl font-bold text-gray-900">{totalItems}</p>
-                </div>
-              </div>
-            </div>
-            <div className="bg-white rounded-xl shadow-sm p-4 border border-gray-100 hover:shadow-md transition-shadow">
-              <div className="flex items-center">
-                <div className="p-2 rounded-lg bg-blue-100">
-                  <Package className="w-5 h-5 text-blue-600" />
-                </div>
-                <div className="ml-3">
-                  <p className="text-xs font-medium text-gray-600">Products</p>
-                  <p className="text-xl font-bold text-gray-900">{productCount}</p>
-                </div>
-              </div>
-            </div>
-            <div className="bg-white rounded-xl shadow-sm p-4 border border-gray-100 hover:shadow-md transition-shadow">
-              <div className="flex items-center">
-                <div className="p-2 rounded-lg bg-indigo-100">
-                  <Briefcase className="w-5 h-5 text-indigo-600" />
-                </div>
-                <div className="ml-3">
-                  <p className="text-xs font-medium text-gray-600">Services</p>
-                  <p className="text-xl font-bold text-gray-900">{serviceCount}</p>
-                </div>
-              </div>
-            </div>
-            <div className="bg-white rounded-xl shadow-sm p-4 border border-gray-100 hover:shadow-md transition-shadow">
-              <div className="flex items-center">
-                <div className="p-2 rounded-lg bg-cyan-100">
-                  <Tag className="w-5 h-5 text-cyan-600" />
-                </div>
-                <div className="ml-3">
-                  <p className="text-xs font-medium text-gray-600">Categories</p>
-                  <p className="text-xl font-bold text-gray-900">{categories.length}</p>
-                </div>
-              </div>
-            </div>
-            <div className="bg-white rounded-xl shadow-sm p-4 border border-gray-100 hover:shadow-md transition-shadow">
-              <div className="flex items-center">
-                <div className="p-2 rounded-lg bg-green-100">
-                  <MapPin className="w-5 h-5 text-green-600" />
-                </div>
-                <div className="ml-3">
-                  <p className="text-xs font-medium text-gray-600">Locations</p>
-                  <p className="text-xl font-bold text-gray-900">{locationUsage.length}</p>
-                </div>
-              </div>
-            </div>
-            <div className="bg-white rounded-xl shadow-sm p-4 border border-gray-100 hover:shadow-md transition-shadow">
-              <div className="flex items-center">
-                <div className="p-2 rounded-lg bg-emerald-100">
-                  <ImageIcon className="w-5 h-5 text-emerald-600" />
-                </div>
-                <div className="ml-3">
-                  <p className="text-xs font-medium text-gray-600">Images</p>
-                  <p className="text-xl font-bold text-gray-900">{locationStats.totalImages}</p>
-                </div>
-              </div>
-            </div>
-            <div className="bg-white rounded-xl shadow-sm p-4 border border-gray-100 hover:shadow-md transition-shadow">
-              <div className="flex items-center">
-                <div className="p-2 rounded-lg bg-rose-100">
-                  <Video className="w-5 h-5 text-rose-600" />
-                </div>
-                <div className="ml-3">
-                  <p className="text-xs font-medium text-gray-600">Videos</p>
-                  <p className="text-xl font-bold text-gray-900">{mediaUsageVideos !== null ? mediaUsageVideos : locationStats.totalVideos}</p>
-                </div>
-              </div>
-            </div>
-          </div>
+      {/* FAB */}
+      <button
+        onClick={() => router.push('/admin/gallery/create')}
+        className="fixed bottom-8 right-8 w-14 h-14 bg-purple-600 hover:bg-purple-700 text-white rounded-full shadow-lg flex items-center justify-center transition-colors z-40"
+        aria-label="Create new gallery item"
+      >
+        <Plus className="w-6 h-6" />
+      </button>
 
-          {/* Location Usage Summary */}
-          {locationUsage.length > 0 && (
-            <div className="bg-white rounded-xl shadow-sm border border-gray-100 p-5 mb-6">
-              <div className="flex items-center justify-between mb-3">
-                <h2 className="text-md font-semibold text-gray-800">Location Usage</h2>
-                <span className="text-xs text-gray-500">
-                  {locationStats.verifiedLocations} of {locationUsage.length} verified
-                </span>
-              </div>
-              <div className="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-3 gap-3">
-                {locationUsage.map((location) => (
-                  <div key={location.locationIndex} className="border border-gray-200 rounded-lg p-3 hover:border-purple-200 transition-colors">
-                    <div className="flex items-center justify-between mb-1">
-                      <span className="font-medium text-gray-800 text-sm">{location.locationName}</span>
-                      {location.verified ? (
-                        <span className="flex items-center text-green-600 text-xs">
-                          <CheckCircle className="w-3 h-3 mr-1" />
-                          Verified
-                        </span>
-                      ) : (
-                        <span className="flex items-center text-amber-600 text-xs">
-                          <XCircle className="w-3 h-3 mr-1" />
-                          Unverified
-                        </span>
-                      )}
-                    </div>
-                    <div className="flex gap-4 text-xs">
-                      <div>
-                        <span className="text-gray-500">Images:</span>
-                        <span className="ml-1 font-semibold text-gray-700">{location.images}/{location.maxImages}</span>
-                      </div>
-                      <div>
-                        <span className="text-gray-500">Videos:</span>
-                        <span className="ml-1 font-semibold text-gray-700">{location.videos}/{location.maxVideos}</span>
-                      </div>
-                    </div>
-                  </div>
-                ))}
-              </div>
+      {/* Filter Modal */}
+      {showFilterModal && (
+        <div className="fixed inset-0 z-50 flex items-center justify-center bg-black/40 px-4">
+          <div className="bg-white rounded-2xl shadow-xl w-full max-w-md p-6">
+            <div className="flex items-center justify-between mb-5">
+              <h2 className="text-lg font-bold text-gray-900">Filter Items</h2>
+              <button
+                onClick={() => setShowFilterModal(false)}
+                className="p-1.5 rounded-lg hover:bg-gray-100 text-gray-500"
+              >
+                <X className="w-5 h-5" />
+              </button>
             </div>
-          )}
-
-          {/* Filters and Controls */}
-          <div className="bg-white rounded-xl shadow-sm border border-gray-100 p-5 mb-6">
-            <div className="flex flex-col lg:flex-row gap-3">
-              {/* Search */}
-              <div className="flex-1">
-                <div className="relative">
-                  <Search className="absolute left-3 top-1/2 transform -translate-y-1/2 text-gray-400 w-4 h-4" />
-                  <input
-                    type="text"
-                    placeholder="Search by name, description, or SKU..."
-                    value={searchTerm}
-                    onChange={handleSearch}
-                    className="w-full pl-9 pr-4 py-2 text-sm border border-gray-300 rounded-lg focus:ring-2 focus:ring-purple-500 focus:border-transparent"
-                  />
-                </div>
-              </div>
-              
-              {/* Filters */}
-              <div className="flex flex-wrap items-center gap-2">
-                {/* Industry Filter */}
-                {industries.length > 0 && (
-                  <select
-                    value={selectedIndustry}
-                    onChange={(e) => handleIndustryFilter(e.target.value)}
-                    className="px-3 py-2 text-sm border border-gray-300 rounded-lg focus:ring-2 focus:ring-purple-500 focus:border-transparent min-w-[140px] bg-white"
-                  >
-                    <option value="">All Industries</option>
-                    {industries.map((industry) => (
-                      <option key={industry} value={industry}>
-                        {industry} ({getIndustryCount(industry)})
-                      </option>
-                    ))}
-                  </select>
-                )}
-
-                {/* Category Filter */}
+            <div className="space-y-4">
+              {/* Category */}
+              <div>
+                <label className="block text-sm font-medium text-gray-700 mb-1.5">
+                  Category
+                </label>
                 <select
-                  value={selectedCategory}
-                  onChange={(e) => handleCategoryFilter(e.target.value)}
-                  className="px-3 py-2 text-sm border border-gray-300 rounded-lg focus:ring-2 focus:ring-purple-500 focus:border-transparent min-w-[140px] bg-white"
+                  value={pendingFilters.categoryId}
+                  onChange={(e) =>
+                    setPendingFilters((f) => ({ ...f, categoryId: e.target.value }))
+                  }
+                  className="w-full px-3 py-2.5 bg-white border border-gray-300 rounded-lg text-sm focus:outline-none focus:ring-2 focus:ring-purple-500"
                 >
                   <option value="">All Categories</option>
-                  {categories.map((category) => (
-                    <option key={category} value={category}>
-                      {category} ({getCategoryCount(category)})
+                  {categories.map((c) => (
+                    <option key={c._id} value={c._id}>
+                      {c.name}
                     </option>
                   ))}
                 </select>
-
-                {/* Item Type Filter */}
-                <select
-                  value={selectedItemType}
-                  onChange={(e) => handleItemTypeFilter(e.target.value)}
-                  className="px-3 py-2 text-sm border border-gray-300 rounded-lg focus:ring-2 focus:ring-purple-500 focus:border-transparent min-w-[140px] bg-white"
-                >
-                  <option value="">All Types</option>
-                  <option value="product">Product ({productCount})</option>
-                  <option value="service">Service ({serviceCount})</option>
-                </select>
-
-                {/* Location Filter */}
-                {locationUsage.length > 0 && (
-                  <select
-                    value={selectedLocation}
-                    onChange={(e) => handleLocationFilter(e.target.value)}
-                    className="px-3 py-2 text-sm border border-gray-300 rounded-lg focus:ring-2 focus:ring-purple-500 focus:border-transparent min-w-[140px] bg-white"
-                  >
-                    <option value="">All Locations</option>
-                    {locationUsage.map((location) => (
-                      <option key={location.locationIndex} value={location.locationIndex.toString()}>
-                        {location.locationName} {location.verified ? '✓' : ''}
-                      </option>
-                    ))}
-                  </select>
-                )}
-                
-                {/* Sort Options */}
-                <select
-                  value={`${sortBy}-${sortOrder}`}
-                  onChange={(e) => {
-                    const [newSortBy, newSortOrder] = e.target.value.split('-');
-                    setSortBy(newSortBy);
-                    setSortOrder(newSortOrder as 'asc' | 'desc');
-                  }}
-                  className="px-3 py-2 text-sm border border-gray-300 rounded-lg focus:ring-2 focus:ring-purple-500 focus:border-transparent min-w-[140px] bg-white"
-                >
-                  <option value="createdAt-desc">Newest First</option>
-                  <option value="createdAt-asc">Oldest First</option>
-                  <option value="priceInDollars-desc">Price: High to Low</option>
-                  <option value="priceInDollars-asc">Price: Low to High</option>
-                  <option value="name-asc">Name: A to Z</option>
-                  <option value="name-desc">Name: Z to A</option>
-                </select>
-
-                {/* View Mode Indicator - Just showing list icon to indicate table view */}
-                <div className="flex items-center border border-gray-300 rounded-lg bg-purple-50">
-                  <div className="p-2 text-purple-600">
-                    <List className="w-4 h-4" />
-                  </div>
-                </div>
-
-                {/* Clear Filters */}
-                {(searchTerm || selectedCategory || selectedIndustry || selectedLocation || selectedItemType) && (
-                  <button
-                    onClick={clearFilters}
-                    className="px-3 py-2 text-xs text-gray-600 hover:text-gray-900 hover:bg-gray-100 rounded-lg transition-colors"
-                  >
-                    Clear
-                  </button>
-                )}
               </div>
+              {/* Price Range */}
+              <div>
+                <label className="block text-sm font-medium text-gray-700 mb-1.5">
+                  Price Range (NGN)
+                </label>
+                <div className="flex gap-3">
+                  <input
+                    type="number"
+                    placeholder="Min price"
+                    value={pendingFilters.minPrice}
+                    onChange={(e) =>
+                      setPendingFilters((f) => ({ ...f, minPrice: e.target.value }))
+                    }
+                    className="flex-1 px-3 py-2.5 border border-gray-300 rounded-lg text-sm focus:outline-none focus:ring-2 focus:ring-purple-500"
+                  />
+                  <input
+                    type="number"
+                    placeholder="Max price"
+                    value={pendingFilters.maxPrice}
+                    onChange={(e) =>
+                      setPendingFilters((f) => ({ ...f, maxPrice: e.target.value }))
+                    }
+                    className="flex-1 px-3 py-2.5 border border-gray-300 rounded-lg text-sm focus:outline-none focus:ring-2 focus:ring-purple-500"
+                  />
+                </div>
+              </div>
+            </div>
+            <div className="flex gap-3 mt-6">
+              <button
+                onClick={() => {
+                  setPendingFilters({ categoryId: '', minPrice: '', maxPrice: '' });
+                }}
+                className="flex-1 px-4 py-2.5 border border-gray-300 rounded-lg text-sm font-medium text-gray-700 hover:bg-gray-50 transition-colors"
+              >
+                Clear All
+              </button>
+              <button
+                onClick={applyFilters}
+                className="flex-1 px-4 py-2.5 bg-purple-600 text-white rounded-lg text-sm font-medium hover:bg-purple-700 transition-colors"
+              >
+                Apply Filters
+              </button>
             </div>
           </div>
-
-          {/* Table View - Only View */}
-          {items.length > 0 ? (
-            <div className="bg-white rounded-xl shadow-sm border border-gray-100 overflow-hidden">
-              <div className="overflow-x-auto">
-                <table className="w-full text-sm">
-                  <thead className="bg-gray-50 border-b border-gray-200">
-                    <tr>
-                      <th className="px-4 py-3 text-left text-xs font-medium text-gray-500 uppercase tracking-wider">Item</th>
-                      <th className="px-4 py-3 text-left text-xs font-medium text-gray-500 uppercase tracking-wider">Type</th>
-                      <th className="px-4 py-3 text-left text-xs font-medium text-gray-500 uppercase tracking-wider">Industry</th>
-                      <th className="px-4 py-3 text-left text-xs font-medium text-gray-500 uppercase tracking-wider">Category</th>
-                      <th className="px-4 py-3 text-left text-xs font-medium text-gray-500 uppercase tracking-wider">Price</th>
-                      <th className="px-4 py-3 text-left text-xs font-medium text-gray-500 uppercase tracking-wider">Qty</th>
-                      <th className="px-4 py-3 text-left text-xs font-medium text-gray-500 uppercase tracking-wider">Platform Code</th>
-                      <th className="px-4 py-3 text-left text-xs font-medium text-gray-500 uppercase tracking-wider">Status</th>
-                      <th className="px-4 py-3 text-left text-xs font-medium text-gray-500 uppercase tracking-wider">Actions</th>
-                    </tr>
-                  </thead>
-                  <tbody className="divide-y divide-gray-200">
-                    {items.map((item) => (
-                      <tr key={item._id} className="hover:bg-gray-50 transition-colors">
-                        <td className="px-4 py-3">
-                          <div className="flex items-center">
-                            <div className="h-8 w-8 flex-shrink-0">
-                              {(item.imageUrl || (item.images && item.images.length > 0)) ? (
-                                <img
-                                  src={item.imageUrl || item.images[0]}
-                                  alt={item.name || item.description}
-                                  className="h-8 w-8 rounded-lg object-cover"
-                                />
-                              ) : (
-                                <div className="h-8 w-8 rounded-lg bg-gray-200 flex items-center justify-center">
-                                  <ImageIcon className="w-4 h-4 text-gray-400" />
-                                </div>
-                              )}
-                            </div>
-                            <div className="ml-3">
-                              <div className="text-xs font-medium text-gray-900">{item.name || item.description}</div>
-                              <div className="text-xs text-gray-500">ID: {item._id.slice(-6)}</div>
-                            </div>
-                          </div>
-                        </td>
-                        <td className="px-4 py-3">
-                          <span className={`px-2 py-1 text-xs rounded-full ${
-                            item.itemType === 'product' 
-                              ? 'bg-blue-100 text-blue-800' 
-                              : 'bg-indigo-100 text-indigo-800'
-                          }`}>
-                            {item.itemType === 'product' ? 'Prod' : 'Serv'}
-                          </span>
-                        </td>
-                        <td className="px-4 py-3 text-xs text-gray-700">
-                          {item.industryName || 'N/A'}
-                        </td>
-                        <td className="px-4 py-3">
-                          <span className="px-2 py-1 text-xs rounded-full bg-purple-100 text-purple-800">
-                            {item.categoryName || item.category}
-                          </span>
-                        </td>
-                        <td className="px-4 py-3">
-                          <div className="text-xs font-medium text-gray-900">
-                            {formatNaira(item.actualAmount || calculateActualAmount(
-                              item.priceInDollars,
-                              item.discountPercentage,
-                              item.platformChargePercentage
-                            ))}
-                          </div>
-                        </td>
-                        <td className="px-4 py-3 text-xs text-gray-900">{item.totalAvailableQuantity}</td>
-                        <td className="px-4 py-3">
-                          <div className="text-xs font-mono bg-gray-100 px-2 py-1 rounded">
-                            {item.platformUniqueCode || 'N/A'}
-                          </div>
-                          <div className="text-xs text-gray-500 mt-1">
-                            #{item.platformUniqueCode?.split('-').pop() || item._id.slice(-6)}
-                          </div>
-                        </td>
-                        <td className="px-4 py-3">
-                          {item.visibilityToPublic ? (
-                            <span className="px-2 py-1 text-xs rounded-full bg-green-100 text-green-800">Public</span>
-                          ) : (
-                            <span className="px-2 py-1 text-xs rounded-full bg-red-100 text-red-800">Private</span>
-                          )}
-                        </td>
-                        <td className="px-4 py-3">
-                          <div className="flex items-center gap-1">
-                            <button 
-                              onClick={() => handleViewItem(item)}
-                              className="p-1 text-blue-600 hover:text-blue-800 hover:bg-blue-50 rounded-lg transition-colors"
-                              title="View"
-                            >
-                              <Eye className="w-4 h-4" />
-                            </button>
-                            <button 
-                              onClick={() => handleEditItem(item)}
-                              className="p-1 text-green-600 hover:text-green-800 hover:bg-green-50 rounded-lg transition-colors"
-                              title="Edit"
-                            >
-                              <Edit className="w-4 h-4" />
-                            </button>
-                            <button 
-                              onClick={() => handleDeleteItem(item)}
-                              className="p-1 text-red-600 hover:text-red-800 hover:bg-red-50 rounded-lg transition-colors"
-                              title="Delete"
-                            >
-                              <Trash2 className="w-4 h-4" />
-                            </button>
-                          </div>
-                        </td>
-                      </tr>
-                    ))}
-                  </tbody>
-                </table>
-              </div>
-            </div>
-          ) : (
-            <div className="bg-white rounded-xl shadow-sm border border-gray-100 p-10 text-center">
-              <div className="max-w-md mx-auto">
-                <div className="bg-gray-100 rounded-full p-3 inline-flex mx-auto mb-3">
-                  <ImageIcon className="w-6 h-6 text-gray-400" />
-                </div>
-                <h3 className="text-md font-medium text-gray-900 mb-1">No gallery items found</h3>
-                <p className="text-xs text-gray-500 mb-4">
-                  {searchTerm || selectedCategory || selectedIndustry || selectedLocation || selectedItemType
-                    ? 'No items match your search criteria. Try adjusting your filters.'
-                    : 'Get started by creating your first gallery item.'}
-                </p>
-                {!searchTerm && !selectedCategory && !selectedIndustry && !selectedLocation && !selectedItemType && (
-                  <button
-                    onClick={handleCreateItem}
-                    className="inline-flex items-center gap-2 bg-purple-600 text-white px-4 py-2 rounded-lg hover:bg-purple-700 transition-colors text-xs font-medium"
-                  >
-                    <Plus className="w-4 h-4" />
-                    Create Your First Item
-                  </button>
-                )}
-                {(searchTerm || selectedCategory || selectedIndustry || selectedLocation || selectedItemType) && (
-                  <button
-                    onClick={clearFilters}
-                    className="inline-flex items-center gap-2 bg-gray-100 text-gray-700 px-4 py-2 rounded-lg hover:bg-gray-200 transition-colors text-xs font-medium"
-                  >
-                    Clear Filters
-                  </button>
-                )}
-              </div>
-            </div>
-          )}
-
-          {/* Pagination */}
-          {totalPages > 1 && (
-            <div className="flex flex-col sm:flex-row items-center justify-between mt-6 gap-3">
-              <div className="text-xs text-gray-600">
-                Showing {items.length} of {totalItems} items • Page {currentPage} of {totalPages}
-              </div>
-              <div className="flex items-center gap-2">
-                <button
-                  onClick={() => setCurrentPage(prev => Math.max(prev - 1, 1))}
-                  disabled={currentPage === 1}
-                  className="px-3 py-1.5 text-xs border border-gray-300 rounded-lg disabled:opacity-50 disabled:cursor-not-allowed hover:bg-gray-50 transition-colors"
-                >
-                  Previous
-                </button>
-                <div className="flex items-center gap-1">
-                  {Array.from({ length: Math.min(5, totalPages) }, (_, i) => {
-                    let pageNum;
-                    if (totalPages <= 5) {
-                      pageNum = i + 1;
-                    } else if (currentPage <= 3) {
-                      pageNum = i + 1;
-                    } else if (currentPage >= totalPages - 2) {
-                      pageNum = totalPages - 4 + i;
-                    } else {
-                      pageNum = currentPage - 2 + i;
-                    }
-                    
-                    return (
-                      <button
-                        key={pageNum}
-                        onClick={() => setCurrentPage(pageNum)}
-                        className={`min-w-[32px] h-8 rounded-lg text-xs font-medium transition-colors ${
-                          currentPage === pageNum
-                            ? 'bg-purple-600 text-white'
-                            : 'border border-gray-300 text-gray-700 hover:bg-gray-50'
-                        }`}
-                      >
-                        {pageNum}
-                      </button>
-                    );
-                  })}
-                </div>
-                <button
-                  onClick={() => setCurrentPage(prev => Math.min(prev + 1, totalPages))}
-                  disabled={currentPage === totalPages}
-                  className="px-3 py-1.5 text-xs border border-gray-300 rounded-lg disabled:opacity-50 disabled:cursor-not-allowed hover:bg-gray-50 transition-colors"
-                >
-                  Next
-                </button>
-              </div>
-            </div>
-          )}
-
-          {/* Delete Confirmation Modal */}
-          <DeleteConfirmationModal
-            isOpen={showDeleteModal}
-            onClose={() => {
-              setShowDeleteModal(false);
-              setSelectedItem(null);
-            }}
-            onConfirm={confirmDeleteItem}
-            itemName={selectedItem?.name || selectedItem?.description || ''}
-            loading={deleteLoading}
-          />
         </div>
-      </div>
+      )}
+
+      {/* Delete Confirm Dialog */}
+      {deleteTarget && (
+        <div className="fixed inset-0 z-50 flex items-center justify-center bg-black/40 px-4">
+          <div className="bg-white rounded-2xl shadow-xl w-full max-w-sm p-6">
+            <div className="flex items-center gap-3 mb-4">
+              <div className="p-2 bg-red-100 rounded-full">
+                <Trash2 className="w-5 h-5 text-red-600" />
+              </div>
+              <h2 className="text-lg font-bold text-gray-900">Delete Item</h2>
+            </div>
+            <p className="text-gray-600 text-sm mb-6">
+              Are you sure you want to delete{' '}
+              <span className="font-semibold">
+                {deleteTarget.name || deleteTarget.description || 'this item'}
+              </span>
+              ? This action cannot be undone.
+            </p>
+            <div className="flex gap-3">
+              <button
+                onClick={() => setDeleteTarget(null)}
+                disabled={deleteLoading}
+                className="flex-1 px-4 py-2.5 border border-gray-300 rounded-lg text-sm font-medium text-gray-700 hover:bg-gray-50 transition-colors disabled:opacity-50"
+              >
+                Cancel
+              </button>
+              <button
+                onClick={handleDelete}
+                disabled={deleteLoading}
+                className="flex-1 px-4 py-2.5 bg-red-600 text-white rounded-lg text-sm font-medium hover:bg-red-700 transition-colors disabled:opacity-50 inline-flex items-center justify-center gap-2"
+              >
+                {deleteLoading && <Loader2 className="w-4 h-4 animate-spin" />}
+                Delete
+              </button>
+            </div>
+          </div>
+        </div>
+      )}
     </div>
   );
-};
-
-export default GalleryManagementPage;
-
-
-
+}

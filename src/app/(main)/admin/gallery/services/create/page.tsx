@@ -451,7 +451,7 @@ export default function ServiceSetupPage() {
   }));
 
   return (
-    <div className="ml-0 md:ml-[350px] pt-8 md:pt-8 p-4 md:p-8 min-h-screen">
+    <div className="pt-8 p-4 md:p-8 min-h-screen">
       <div className="max-w-4xl mx-auto">
         <div className="flex items-center justify-between mb-6">
           <button

@@ -119,7 +119,7 @@ const AdminObjectDimensionPage = () => {
       />
 
       {/* Main Content */}
-      <div className="w-full px-4 py-6 md:absolute md:w-[958px] md:top-[150px] md:left-[401px] md:px-0">
+      <div className="w-full px-4 md:px-6 py-4">
         {/* Header with Title */}
         <div className="flex flex-col sm:flex-row justify-between items-start sm:items-center gap-4 mb-6">
           <h1 className="manrope text-xl md:text-3xl font-semibold text-gray-800">

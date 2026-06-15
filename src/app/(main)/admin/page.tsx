@@ -7,7 +7,7 @@ import Image from 'next/image';
 import { AdminMeasurementService } from '@/services/AdminMeasurementService';
 import UserSubscriptionService from '@/services/UserSubscriptionService';
 import { toast } from '@/app/components/hooks/use-toast';
-import { User, Users, BarChart3, UserCheck, Key, Archive, XCircle, Bell, ShoppingBag, Building, CreditCard, Ticket, Shield, Briefcase, CheckSquare, MapPin, Settings } from 'lucide-react';
+import { User, Users, BarChart3, UserCheck, Key, Archive, ShoppingBag, Building, CreditCard, Ticket, Shield, Briefcase, CheckSquare, Settings, Bell } from 'lucide-react';
 import { useAuthContext } from '@/AuthContext';
 
 import { BASE_URL } from '@/config/api';
@@ -19,7 +19,7 @@ const QUICK_ACTIONS = [
   { label: 'One-Time Codes', icon: Key, route: '/admin/users/one-time-codes', color: 'bg-yellow-50 text-yellow-600' },
   { label: 'Gallery', icon: ShoppingBag, route: '/admin/gallery', color: 'bg-pink-50 text-pink-600' },
   { label: 'Orders', icon: Briefcase, route: '/admin/order-management', color: 'bg-orange-50 text-orange-600' },
-  { label: 'Bank Details', icon: CreditCard, route: '/admin/bank-details', color: 'bg-indigo-50 text-indigo-600' },
+  { label: 'Bank Details', icon: CreditCard, route: '/admin/remittance', color: 'bg-indigo-50 text-indigo-600' },
   { label: 'Remittances', icon: Ticket, route: '/admin/remittance', color: 'bg-teal-50 text-teal-600' },
   { label: 'Settlements', icon: CheckSquare, route: '/admin/settlement/provider-settlement', color: 'bg-cyan-50 text-cyan-600' },
   { label: 'Bookings', icon: Settings, route: '/admin/booking', color: 'bg-violet-50 text-violet-600' },
@@ -35,7 +35,6 @@ const AdminDashboard = () => {
   const router = useRouter();
   const { user, token } = useAuthContext();
   const [loading, setLoading] = useState(true);
-  const [unreadCount, setUnreadCount] = useState(0);
   const [stats, setStats] = useState({
     totalUsers: 0,
     activeUsers: 0,
@@ -60,17 +59,6 @@ const AdminDashboard = () => {
     hips: '98 cm',
     legs: '88 cm'
   };
-
-  // Fetch unread notification count
-  useEffect(() => {
-    if (!token) return;
-    fetch(`${BASE_URL}/api/admin/notifications/unread-count`, {
-      headers: { Authorization: `Bearer ${token}` },
-    })
-      .then(r => r.json())
-      .then(d => setUnreadCount(d.unreadCount || d.data?.unreadCount || 0))
-      .catch(() => {});
-  }, [token]);
 
   // Fixed useEffect – no infinite loading
   useEffect(() => {
@@ -135,19 +123,19 @@ const AdminDashboard = () => {
   ];
 
   return (
-    <div className="min-h-screen bg-white">
+    <div className="min-h-screen bg-white pt-8">
       <style jsx>{`
         @import url('https://fonts.googleapis.com/css2?family=Manrope:wght@300;400;500;600;700&display=swap');
         .manrope { font-family: 'Manrope', sans-serif; }
       `}</style>
 
-   
-      <MeasurementTopNav 
+
+      <MeasurementTopNav
         title="Current system metrics"
         measurements={currentMeasurement}
       />
 
-      <div className="px-4 pt-4 md:pt-0 md:absolute md:w-[958px] md:top-[271px] md:left-[401px]">
+      <div className="px-4 md:px-6 py-4">
         <div className="flex items-center justify-between mb-4">
           <h2 className="manrope text-xl md:text-2xl font-semibold text-gray-800">Overview</h2>
           {loading && (
@@ -184,24 +172,15 @@ const AdminDashboard = () => {
         <div className="mt-10">
           <div className="flex items-center justify-between mb-4">
             <span className="manrope text-xs font-semibold uppercase tracking-widest text-gray-400">Quick Actions</span>
-            {unreadCount > 0 && (
-              <button
-                onClick={() => router.push('/admin/notifications')}
-                className="flex items-center gap-1.5 text-xs text-[#5D2A8B] hover:underline"
-              >
-                <Bell className="w-3.5 h-3.5" />
-                {unreadCount} unread
-              </button>
-            )}
           </div>
           <div className="grid grid-cols-2 sm:grid-cols-3 lg:grid-cols-4 gap-px bg-gray-100 border border-gray-100 rounded-xl overflow-hidden">
             {QUICK_ACTIONS.map((action) => {
               const Icon = action.icon;
               return (
                 <button
-                  key={action.route}
+                  key={action.label}
                   onClick={() => router.push(action.route)}
-                  className="flex items-center gap-3 px-5 py-4 bg-white hover:bg-gray-50 text-left w-full"
+                  className="flex items-center gap-3 px-5 py-4 bg-white hover:bg-gray-50 text-left w-full cursor-pointer"
                 >
                   <Icon className="w-4 h-4 text-gray-400 flex-shrink-0" />
                   <span className="manrope text-sm font-medium text-gray-700 leading-snug">{action.label}</span>
@@ -210,6 +189,7 @@ const AdminDashboard = () => {
             })}
           </div>
         </div>
+        <div className="pb-16" />
       </div>
     </div>
   );

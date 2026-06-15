@@ -560,4 +560,51 @@ export class GalleryService {
       return false;
     }
   }
+
+  /**
+   * Get org-scoped gallery items
+   * GET /api/admin/gallery/items
+   */
+  static async getAdminGalleryItems(
+    params: {
+      page?: number;
+      limit?: number;
+      itemType?: 'product' | 'service' | '';
+      categoryId?: string;
+      search?: string;
+      sortBy?: string;
+      sortOrder?: 'asc' | 'desc';
+    } = {}
+  ): Promise<{ success: boolean; data?: any; message?: string }> {
+    try {
+      const q = new URLSearchParams();
+      if (params.page) q.append('page', String(params.page));
+      if (params.limit) q.append('limit', String(params.limit));
+      if (params.itemType) q.append('itemType', params.itemType);
+      if (params.categoryId) q.append('categoryId', params.categoryId);
+      if (params.search) q.append('search', params.search);
+      if (params.sortBy) q.append('sortBy', params.sortBy);
+      if (params.sortOrder) q.append('sortOrder', params.sortOrder);
+      const url = `/api/admin/gallery/items${q.toString() ? `?${q}` : ''}`;
+      const response = await GalleryService.httpService.getData<any>(url);
+      return { success: response.success, data: response.data, message: response.message };
+    } catch (error) {
+      return { success: false, message: error instanceof Error ? error.message : 'Unknown error' };
+    }
+  }
+
+  /**
+   * Get org-scoped gallery item details
+   * GET /api/admin/gallery/items/:itemId
+   */
+  static async getAdminGalleryItemDetails(
+    itemId: string
+  ): Promise<{ success: boolean; data?: any; message?: string }> {
+    try {
+      const response = await GalleryService.httpService.getData<any>(`/api/admin/gallery/items/${itemId}`);
+      return { success: response.success, data: response.data, message: response.message };
+    } catch (error) {
+      return { success: false, message: error instanceof Error ? error.message : 'Unknown error' };
+    }
+  }
 }

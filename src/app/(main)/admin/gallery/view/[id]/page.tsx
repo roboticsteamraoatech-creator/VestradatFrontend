@@ -152,8 +152,7 @@ const ViewGalleryItemPage = () => {
 
   return (
     <div className="min-h-screen bg-gray-50">
-      <div className="ml-0 lg:ml-[280px] transition-all duration-300">
-        <div className="max-w-7xl mx-auto px-4 sm:px-6 lg:px-8 py-8">
+      <div className="px-4 sm:px-6 lg:px-8 py-8 max-w-7xl mx-auto">
           {/* Header with Back Button and Title */}
           <div className="flex flex-col sm:flex-row sm:items-center justify-between gap-4 mb-6">
             <button
@@ -567,7 +566,6 @@ const ViewGalleryItemPage = () => {
 
          
          
-        </div>
       </div>
     </div>
   );

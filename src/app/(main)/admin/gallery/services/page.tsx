@@ -355,7 +355,7 @@ export default function GalleryPage() {
 
   if (loading) {
     return (
-      <div className="ml-0 md:ml-[350px] pt-8 md:pt-8 p-4 md:p-8 min-h-screen bg-gray-50">
+      <div className="pt-8 p-4 md:p-8 min-h-screen bg-gray-50">
         <div className="max-w-7xl mx-auto">
           <div className="flex items-center justify-center h-64">
             <div className="text-center">
@@ -370,7 +370,7 @@ export default function GalleryPage() {
 
   if (error) {
     return (
-      <div className="ml-0 md:ml-[350px] pt-8 md:pt-8 p-4 md:p-8 min-h-screen bg-gray-50">
+      <div className="pt-8 p-4 md:p-8 min-h-screen bg-gray-50">
         <div className="max-w-7xl mx-auto">
           <div className="bg-red-50 border border-red-200 rounded-lg p-6 text-center">
             <svg className="w-12 h-12 text-red-500 mx-auto mb-4" fill="none" stroke="currentColor" viewBox="0 0 24 24">
@@ -391,7 +391,7 @@ export default function GalleryPage() {
   }
 
   return (
-    <div className="ml-0 md:ml-[350px] pt-8 md:pt-8 p-4 md:p-8 min-h-screen bg-gray-50">
+    <div className="pt-8 p-4 md:p-8 min-h-screen bg-gray-50">
       <div className="max-w-7xl mx-auto">
     
         <div className="mb-6 flex justify-between items-center">
