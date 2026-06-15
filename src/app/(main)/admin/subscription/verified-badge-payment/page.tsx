@@ -59,7 +59,7 @@ export default function VerifiedBadgePaymentPage() {
           amount: pricing.totalAmount,
           currency: 'NGN',
           email: user?.email,
-          name: user?.fullName || user?.name,
+          name: user?.fullName,
           redirect_url: `${origin}/payment/verify-verified-badge`,
         }),
       });
