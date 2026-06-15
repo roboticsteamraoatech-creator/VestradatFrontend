@@ -30,6 +30,14 @@ interface MediaUsage {
   videos: { current: number; max: number; remaining: number };
   verified: boolean;
 }
+interface SubServiceEdit {
+  name: string;
+  description: string;
+  price: string;
+  uploadPicture: string;
+  newFile: File | null;
+  uploading: boolean;
+}
 
 // ─── Helpers ──────────────────────────────────────────────────────────────────
 
@@ -86,6 +94,9 @@ export default function EditGalleryItemPage() {
   const [newVideoFile, setNewVideoFile] = useState<File | null>(null);
   const imageInputRef = useRef<HTMLInputElement>(null);
   const videoInputRef = useRef<HTMLInputElement>(null);
+
+  const [hasSubServices, setHasSubServices] = useState(false);
+  const [subServices, setSubServices] = useState<SubServiceEdit[]>([]);
 
   const [form, setForm] = useState({
     name: '',
@@ -167,6 +178,18 @@ export default function EditGalleryItemPage() {
         setCurrentImage(item.imageUrl || null);
         setCurrentVideo(item.videoUrl || null);
 
+        if (item.hasSubServices && Array.isArray(item.subServices) && item.subServices.length > 0) {
+          setHasSubServices(true);
+          setSubServices(item.subServices.map((s: any) => ({
+            name: s.name || '',
+            description: s.description || '',
+            price: (s.price ?? 0).toString(),
+            uploadPicture: s.uploadPicture || '',
+            newFile: null,
+            uploading: false,
+          })));
+        }
+
         setForm({
           name: item.name || '',
           description: item.description || '',
@@ -244,6 +267,20 @@ export default function EditGalleryItemPage() {
     e.target.value = '';
   };
 
+  const handleSubServiceImageChange = async (index: number, file: File) => {
+    setSubServices(prev => prev.map((s, i) => i === index ? { ...s, newFile: file, uploading: true } : s));
+    const token = getToken();
+    const res = await GalleryService.uploadSubServiceImage(token, itemId, index, file);
+    if (res.success && res.data?.uploadPicture) {
+      setSubServices(prev => prev.map((s, i) =>
+        i === index ? { ...s, uploadPicture: res.data!.uploadPicture, newFile: null, uploading: false } : s
+      ));
+    } else {
+      setSubServices(prev => prev.map((s, i) => i === index ? { ...s, newFile: null, uploading: false } : s));
+      setSubmitError(`Sub-service ${index + 1} image upload failed: ${res.message || 'Unknown error'}`);
+    }
+  };
+
   // ── submit ──
   const handleSubmit = async (e: React.FormEvent) => {
     e.preventDefault();
@@ -256,27 +293,40 @@ export default function EditGalleryItemPage() {
     const token = getToken();
 
     try {
+      const putBody: Record<string, any> = {
+        name: form.name,
+        description: form.description,
+        itemType: form.itemType,
+        categoryId: form.categoryId,
+        sku: form.sku,
+        upc: form.upc,
+        totalAvailableQuantity: parseInt(form.totalAvailableQuantity) || 0,
+        priceInDollars: parseFloat(form.priceInDollars) || 0,
+        discountPercentage: parseFloat(form.discountPercentage) || 0,
+        upfrontPaymentPercentage: parseFloat(form.upfrontPaymentPercentage) || 0,
+        startDate: form.startDate,
+        startTime: form.startTime,
+        endDate: form.endDate,
+        endTime: form.endTime,
+        visibilityToPublic: form.visibilityToPublic,
+        notes: form.notes,
+        locationIndex: parseInt(form.locationIndex) || 0,
+      };
+
+      if (hasSubServices && subServices.length > 0) {
+        putBody.hasSubServices = true;
+        putBody.subServiceCount = subServices.length;
+        putBody.subServices = subServices.map(s => ({
+          name: s.name,
+          description: s.description,
+          price: parseFloat(s.price) || 0,
+          ...(s.uploadPicture ? { uploadPicture: s.uploadPicture } : {}),
+        }));
+      }
+
       const putRes = await HttpService.put<{ success: boolean; message?: string }>(
         `/api/admin/gallery/${itemId}`,
-        {
-          name: form.name,
-          description: form.description,
-          itemType: form.itemType,
-          categoryId: form.categoryId,
-          sku: form.sku,
-          upc: form.upc,
-          totalAvailableQuantity: parseInt(form.totalAvailableQuantity) || 0,
-          priceInDollars: parseFloat(form.priceInDollars) || 0,
-          discountPercentage: parseFloat(form.discountPercentage) || 0,
-          upfrontPaymentPercentage: parseFloat(form.upfrontPaymentPercentage) || 0,
-          startDate: form.startDate,
-          startTime: form.startTime,
-          endDate: form.endDate,
-          endTime: form.endTime,
-          visibilityToPublic: form.visibilityToPublic,
-          notes: form.notes,
-          locationIndex: parseInt(form.locationIndex) || 0,
-        }
+        putBody
       );
 
       if (!putRes.success) {
@@ -683,7 +733,88 @@ export default function EditGalleryItemPage() {
             </div>
           </div>
 
-          {/* 6. Additional Information */}
+          {/* 6. Sub-services (service items only) */}
+          {form.itemType === 'service' && hasSubServices && subServices.length > 0 && (
+            <div className="bg-white rounded-xl border border-gray-200 p-5">
+              <h2 className="text-base font-semibold text-gray-900 mb-4">Sub-services</h2>
+              <div className="space-y-5">
+                {subServices.map((sub, idx) => (
+                  <div key={idx} className="border border-gray-100 rounded-xl p-4 space-y-3">
+                    <p className="text-xs font-semibold text-purple-700 uppercase tracking-wide">Sub-service {idx + 1}</p>
+
+                    <div>
+                      <label className={labelCls}>Name</label>
+                      <input
+                        className={inputCls}
+                        value={sub.name}
+                        onChange={e => setSubServices(prev => prev.map((s, i) => i === idx ? { ...s, name: e.target.value } : s))}
+                        placeholder="Sub-service name"
+                      />
+                    </div>
+
+                    <div>
+                      <label className={labelCls}>Description</label>
+                      <textarea
+                        rows={2}
+                        className={inputCls}
+                        value={sub.description}
+                        onChange={e => setSubServices(prev => prev.map((s, i) => i === idx ? { ...s, description: e.target.value } : s))}
+                        placeholder="Sub-service description"
+                      />
+                    </div>
+
+                    <div>
+                      <label className={labelCls}>Price ₦</label>
+                      <input
+                        type="number"
+                        min="0"
+                        step="0.01"
+                        className={inputCls}
+                        value={sub.price}
+                        onChange={e => setSubServices(prev => prev.map((s, i) => i === idx ? { ...s, price: e.target.value } : s))}
+                      />
+                    </div>
+
+                    <div>
+                      <label className={labelCls}>Image</label>
+                      {sub.uploading ? (
+                        <div className="flex items-center gap-2 text-sm text-purple-600">
+                          <Loader2 className="w-4 h-4 animate-spin" />
+                          Uploading…
+                        </div>
+                      ) : (
+                        <div className="flex items-center gap-3">
+                          {sub.uploadPicture && (
+                            <img
+                              src={sub.uploadPicture}
+                              alt={`Sub-service ${idx + 1}`}
+                              className="w-16 h-16 object-cover rounded-lg border border-gray-200 shrink-0"
+                            />
+                          )}
+                          <label className="cursor-pointer flex items-center gap-2 px-3 py-2 border border-dashed border-gray-300 rounded-lg text-xs text-gray-500 hover:border-purple-400 hover:bg-purple-50 transition-colors">
+                            <ImageIcon className="w-4 h-4" />
+                            {sub.uploadPicture ? 'Replace image' : 'Upload image'}
+                            <input
+                              type="file"
+                              accept="image/jpeg,image/png,image/webp"
+                              className="hidden"
+                              onChange={e => {
+                                const file = e.target.files?.[0];
+                                if (file) handleSubServiceImageChange(idx, file);
+                                e.target.value = '';
+                              }}
+                            />
+                          </label>
+                        </div>
+                      )}
+                    </div>
+                  </div>
+                ))}
+              </div>
+            </div>
+          )}
+
+          {/* 7. Additional Information */}
           <div className="bg-white rounded-xl border border-gray-200 p-5">
             <h2 className="text-base font-semibold text-gray-900 mb-4">Additional Information</h2>
             <textarea

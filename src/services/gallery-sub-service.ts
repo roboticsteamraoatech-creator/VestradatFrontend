@@ -291,6 +291,47 @@ export class GalleryService {
   }
 
   /**
+   * Upload image for a specific sub-service slot during edit
+   * POST /api/admin/gallery/:itemId/sub-services/:index/upload-image
+   */
+  static async uploadSubServiceImage(
+    token: string,
+    itemId: string,
+    index: number,
+    imageFile: File
+  ): Promise<{ success: boolean; data?: { uploadPicture: string; subServiceIndex: number; subService: any }; message?: string }> {
+    try {
+      const validation = validateFile(imageFile, 'image');
+      if (!validation.valid) {
+        return { success: false, message: validation.message };
+      }
+
+      const formData = new FormData();
+      formData.append('image', imageFile);
+
+      const response = await fetch(
+        `${GalleryService.httpService['baseUrl']}/api/admin/gallery/${itemId}/sub-services/${index}/upload-image`,
+        {
+          method: 'POST',
+          headers: this.getHeaders(token),
+          body: formData
+        }
+      );
+
+      const result = await response.json();
+
+      if (!response.ok) {
+        return { success: false, message: result.message || `HTTP ${response.status}` };
+      }
+
+      return { success: true, data: result.data, message: result.message };
+    } catch (error) {
+      console.error('Error uploading sub-service image:', error);
+      return { success: false, message: error instanceof Error ? error.message : 'An unknown error occurred' };
+    }
+  }
+
+  /**
    * Upload video to gallery item
    * POST /api/admin/gallery/:itemId/upload-video
    */
