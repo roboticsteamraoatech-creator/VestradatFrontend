@@ -3,19 +3,16 @@
 import { useState, useEffect, useCallback } from "react";
 import {
   ArrowLeft,
-  ChevronLeft,
-  ChevronRight,
-  Globe,
   Clock,
-  Users,
+  Globe,
   Plus,
-  X,
+  Trash2,
   MapPin,
   Phone,
-  CheckCircle,
-  Loader2,
-  Check,
+  Lock,
   AlertCircle,
+  Check,
+  Calendar as CalendarIcon,
 } from "lucide-react";
 import { useRouter, useSearchParams } from "next/navigation";
 import BookingService, {
@@ -24,6 +21,15 @@ import BookingService, {
   LocationOption,
   BookingLocation,
 } from "@/services/BookingService";
+
+// Import the user authentication context hook
+import { useAuthContext } from "@/AuthContext"; // Adjust this relative path to match your file tree
+
+// Import the Calendar Component and its default style rules
+import Calendar from 'react-calendar';
+// import 'react-calendar/dist/Calendar.css';
+
+import { BASE_URL } from '@/config/api';
 
 // ─── Types ────────────────────────────────────────────────────────────────────
 
@@ -54,20 +60,6 @@ type LocationType =
   | "new_address"
   | "whatsapp_location";
 
-// Step 1 = Date/Time, Step 2 = Guest Details, Step 3 = Location,
-// Step 4 = Sub-Services + Pricing, Step 5 = Confirm & Pay
-type Step = 1 | 2 | 3 | 4 | 5;
-
-// ─── Constants ────────────────────────────────────────────────────────────────
-
-const MONTHS = [
-  "January","February","March","April","May","June",
-  "July","August","September","October","November","December",
-];
-const DAYS = ["MON","TUE","WED","THU","FRI","SAT","SUN"];
-
-import { BASE_URL } from '@/config/api';
-
 // ─── Helpers ──────────────────────────────────────────────────────────────────
 
 function formatCurrency(amount: number) {
@@ -80,51 +72,20 @@ function formatCurrency(amount: number) {
 }
 
 function splitName(full: string) {
-  const parts = full.trim().split(" ");
+  const parts = full.trim().split(/\s+/);
   return { firstName: parts[0] || "", lastName: parts.slice(1).join(" ") || parts[0] || "" };
 }
-
-// ─── Sub-components ───────────────────────────────────────────────────────────
-
-function StepBar({ step }: { step: Step }) {
-  const labels = ["Date & Time","Guest Details","Location","Add-ons","Confirm"];
-  return (
-    <div style={{ display:"flex", alignItems:"center", padding:"12px 16px", gap:4, overflowX:"auto" }}>
-      {labels.map((label, i) => {
-        const n = (i + 1) as Step;
-        const active = n === step;
-        const done = n < step;
-        return (
-          <div key={n} style={{ display:"flex", alignItems:"center", gap:4, flexShrink:0 }}>
-            <div style={{
-              width:24, height:24, borderRadius:"50%", fontSize:11, fontWeight:600,
-              display:"flex", alignItems:"center", justifyContent:"center",
-              background: done ? "#5d2a8b" : active ? "#5d2a8b" : "#e0d6f5",
-              color: done || active ? "#fff" : "#999",
-            }}>
-              {done ? <Check size={12}/> : n}
-            </div>
-            <span style={{ fontSize:11, color: active ? "#5d2a8b" : done ? "#5d2a8b" : "#aaa", fontWeight: active ? 600 : 400 }}>
-              {label}
-            </span>
-            {i < labels.length - 1 && (
-              <div style={{ width:16, height:1, background: done ? "#5d2a8b" : "#e0d6f5", marginLeft:4 }}/>
-            )}
-          </div>
-        );
-      })}
-    </div>
-  );
-}
-
 
 // ─── Main Component ───────────────────────────────────────────────────────────
 
 const BookAppointmentPage = () => {
   const router = useRouter();
   const searchParams = useSearchParams();
+  
+  // Consume user profile object securely from the authentication state provider
+  const { user } = useAuthContext();
 
-  // Strip platform unique code suffix (e.g. "ORG123-009-048" → "ORG123")
+  // Strip platform unique code suffix
   const rawOrganizationId = searchParams.get("organizationId") || "";
   const organizationId = rawOrganizationId.replace(/-\d{3}-\d{3}$/, "");
   const serviceId = searchParams.get("serviceId") || "";
@@ -134,24 +95,22 @@ const BookAppointmentPage = () => {
   const [loading, setLoading] = useState(true);
   const [error, setError] = useState<string | null>(null);
 
-  // ── Calendar ──
-  const today = new Date();
-  const [viewMonth, setViewMonth] = useState(today.getMonth() + 1);
-  const [viewYear, setViewYear] = useState(today.getFullYear());
-  const [availableDays, setAvailableDays] = useState<Set<string>>(new Set());
+  // ── Calendar state mapping ──
   const [selectedDate, setSelectedDate] = useState<string | null>(null);
+  const [allowedDates, setAllowedDates] = useState<string[]>([]);
+  const [currentMonthYear, setCurrentMonthYear] = useState({
+    month: new Date().getMonth() + 1,
+    year: new Date().getFullYear()
+  });
 
   // ── Slots ──
   const [slots, setSlots] = useState<TimeSlot[]>([]);
   const [selectedSlot, setSelectedSlot] = useState<TimeSlot | null>(null);
   const [loadingSlots, setLoadingSlots] = useState(false);
 
-  // ── Step ──
-  const [step, setStep] = useState<Step>(1);
-
   // ── Guests ──
   const makeGuest = (id: number): GuestForm => ({
-    id, name:"", firstName:"", lastName:"", email:"", phone:"", age:"", notes:"", selectedSubServices:[],
+    id, name: "", firstName: "", lastName: "", email: "", phone: "", age: "", notes: "", selectedSubServices: [],
   });
   const [guests, setGuests] = useState<GuestForm[]>([makeGuest(0)]);
 
@@ -165,7 +124,6 @@ const BookAppointmentPage = () => {
     newAddress?: LocationOption;
     whatsappLocation?: LocationOption;
   } | null>(null);
-  const [locationValidating] = useState(false);
   const [locationError, setLocationError] = useState<string | null>(null);
 
   // ── Sub-services & pricing ──
@@ -179,6 +137,29 @@ const BookAppointmentPage = () => {
 
   // ── Submission ──
   const [isSubmitting, setIsSubmitting] = useState(false);
+
+  // ─── Autofill primary booker form fields when profile initializes ──────────
+  useEffect(() => {
+    if (user) {
+      setGuests((prev) =>
+        prev.map((g) => {
+          if (g.id === 0) {
+            const nameString = user.fullName || "";
+            const { firstName, lastName } = splitName(nameString);
+            return {
+              ...g,
+              name: nameString,
+              firstName,
+              lastName,
+              email: user.email || "",
+              phone: user.phoneNumber || "",
+            };
+          }
+          return g;
+        })
+      );
+    }
+  }, [user]);
 
   // ─── Load service from localStorage ───────────────────────────────────────
   useEffect(() => {
@@ -236,10 +217,10 @@ const BookAppointmentPage = () => {
     if (!organizationId) return;
     const safeId = serviceId && (/^[0-9a-fA-F]{24}$/.test(serviceId) || /^ORG.*-\d+$/.test(serviceId))
       ? serviceId : undefined;
-    BookingService.getAvailableDays({ organizationId, month: viewMonth, year: viewYear, serviceId: safeId })
-      .then((res) => { if (res.success) setAvailableDays(new Set(res.data.availableDays)); })
-      .catch(() => setAvailableDays(new Set()));
-  }, [organizationId, viewMonth, viewYear, serviceId]);
+    BookingService.getAvailableDays({ organizationId, month: currentMonthYear.month, year: currentMonthYear.year, serviceId: safeId })
+      .then((res) => { if (res.success) setAllowedDates(res.data.availableDays); })
+      .catch(() => setAllowedDates([]));
+  }, [organizationId, currentMonthYear, serviceId]);
 
   // ─── Fetch slots when date selected ───────────────────────────────────────
   useEffect(() => {
@@ -266,41 +247,48 @@ const BookAppointmentPage = () => {
         body: JSON.stringify({ serviceId: service.id, organizationId, paymentType: type, bookedForPersons }),
       });
       const data = await res.json();
-      if (data.success) setPricingBreakdown(data.data);
+      if (data.success) {
+        setPricingBreakdown(data.data);
+        if (data.data?.upfrontPercentage && paymentType === "upfront") {
+          setPaymentType("upfront");
+        }
+      }
     } catch (e) { console.error("Pricing error:", e); }
     finally { setPricingLoading(false); }
-  }, [service, organizationId]);
+  }, [service, organizationId, paymentType]);
 
-  // Recalculate whenever guests or paymentType changes (on step 4)
+  // Sync pricing updates on step changes or mutation structures
   useEffect(() => {
-    if (step === 4) calculatePricing(guests, paymentType);
-  }, [step, paymentType]); // eslint-disable-line react-hooks/exhaustive-deps
+    calculatePricing(guests, paymentType);
+  }, [guests, paymentType, calculatePricing]);
 
+  // ─── Calendar Disabled Configuration Interceptor ───────────────────────────
+  const isTileDisabled = ({ date, view }: { date: Date; view: string }) => {
+    if (view === 'month') {
+      const year = date.getFullYear();
+      const month = String(date.getMonth() + 1).padStart(2, '0');
+      const day = String(date.getDate()).padStart(2, '0');
+      const localISODate = `${year}-${month}-${day}`;
+      
+      const today = new Date();
+      today.setHours(0,0,0,0);
+      if (date < today) return true;
 
-  // ─── Calendar helpers ──────────────────────────────────────────────────────
-  const firstDayOfMonth = useCallback(() => {
-    const d = new Date(viewYear, viewMonth - 1, 1).getDay();
-    return d === 0 ? 6 : d - 1;
-  }, [viewMonth, viewYear]);
-
-  const daysInMonth = useCallback(() => new Date(viewYear, viewMonth, 0).getDate(), [viewMonth, viewYear]);
-
-  const isAvailable = (day: number) => {
-    const s = `${viewYear}-${String(viewMonth).padStart(2,"0")}-${String(day).padStart(2,"0")}`;
-    return availableDays.has(s);
-  };
-  const isToday = (day: number) =>
-    day === today.getDate() && viewMonth === today.getMonth() + 1 && viewYear === today.getFullYear();
-  const isSelected = (day: number) => {
-    const s = `${viewYear}-${String(viewMonth).padStart(2,"0")}-${String(day).padStart(2,"0")}`;
-    return selectedDate === s;
-  };
-  const selectDay = (day: number) => {
-    if (!isAvailable(day)) return;
-    setSelectedDate(`${viewYear}-${String(viewMonth).padStart(2,"0")}-${String(day).padStart(2,"0")}`);
+      return !allowedDates.includes(localISODate);
+    }
+    return false;
   };
 
-  // ─── Guest helpers ─────────────────────────────────────────────────────────
+  const handleCalendarNavigate = ({ activeStartDate }: { activeStartDate: Date | null }) => {
+    if (activeStartDate) {
+      setCurrentMonthYear({
+        month: activeStartDate.getMonth() + 1,
+        year: activeStartDate.getFullYear()
+      });
+    }
+  };
+
+  // ─── Guest Helpers ─────────────────────────────────────────────────────────
   const addGuest = () => setGuests((prev) => [...prev, makeGuest(Date.now())]);
   const removeGuest = (id: number) => setGuests((prev) => prev.filter((g) => g.id !== id));
   const updateGuest = (id: number, field: keyof GuestForm, value: string) =>
@@ -326,21 +314,6 @@ const BookAppointmentPage = () => {
     }));
   };
 
-  // ─── Location validation ───────────────────────────────────────────────────
-  const validateAndProceedToSubServices = () => {
-    setLocationError(null);
-    // Basic client-side validation for inputs that require user entry
-    if (locationType === "new_address" && !newAddress.trim()) {
-      setLocationError("Please enter an address.");
-      return;
-    }
-    if (locationType === "whatsapp_location" && !whatsappLink.trim()) {
-      setLocationError("Please enter a WhatsApp location URL.");
-      return;
-    }
-    setStep(4);
-  };
-
   // ─── Submit / Initiate Payment ─────────────────────────────────────────────
   const handleConfirm = async () => {
     if (!service || !selectedDate || !selectedSlot) return;
@@ -355,7 +328,6 @@ const BookAppointmentPage = () => {
         default:                  bookingLocation = { type: "merchant_location" };
       }
 
-      // Build bookedForPersons — every guest must have a name
       const bookedForPersons = guests.map((g, i) => ({
         name: g.name.trim() || `Guest ${i + 1}`,
         firstName: g.firstName || splitName(g.name).firstName || `Guest`,
@@ -415,468 +387,316 @@ const BookAppointmentPage = () => {
     }
   };
 
-
-  // ─── Shared styles ─────────────────────────────────────────────────────────
-  const S = {
-    card: { background:"#fff", borderRadius:16, overflow:"hidden", border:"0.5px solid #e0d6f5", boxShadow:"0 4px 24px rgba(93,42,139,0.07)" } as React.CSSProperties,
-    header: { background:"linear-gradient(135deg,#5d2a8b 0%,#7a3aa3 100%)", padding:"1rem 1.25rem", display:"flex", alignItems:"center", gap:10 } as React.CSSProperties,
-    section: { padding:"1.25rem 1.5rem", borderBottom:"0.5px solid #e8e0f5" } as React.CSSProperties,
-    sectionLast: { padding:"1.25rem 1.5rem" } as React.CSSProperties,
-    input: { width:"100%", padding:"9px 12px", border:"0.5px solid #d0c4e8", borderRadius:8, fontSize:14, background:"#fff", color:"#1a1a2e", outline:"none", boxSizing:"border-box" as const },
-    label: { display:"block", fontSize:13, color:"#666", marginBottom:5 } as React.CSSProperties,
-    btn: (disabled=false) => ({ width:"100%", background: disabled ? "#9b6dc0" : "#5d2a8b", color:"#fff", border:"none", borderRadius:10, padding:"13px 0", fontSize:15, fontWeight:600, cursor: disabled ? "not-allowed" : "pointer", display:"flex", alignItems:"center", justifyContent:"center", gap:8 } as React.CSSProperties),
-    row: { display:"flex", justifyContent:"space-between", fontSize:14, padding:"5px 0" } as React.CSSProperties,
-  };
-
-  // ─── Loading / error screens ───────────────────────────────────────────────
   if (loading) return (
-    <div style={{ minHeight:"100vh", background:"#f8f5ff", display:"flex", alignItems:"center", justifyContent:"center" }}>
-      <div style={{ textAlign:"center" }}>
-        <Loader2 size={40} style={{ animation:"spin 1s linear infinite", color:"#5d2a8b", margin:"0 auto 16px" }}/>
-        <p style={{ color:"#666" }}>Loading booking details...</p>
+    <div className="min-h-screen bg-gray-50 flex items-center justify-center p-4">
+      <div className="text-center space-y-2">
+        <span className="animate-spin h-10 w-10 text-[#5d2a8b] mx-auto block rounded-full border-b-2 border-[#5d2a8b]" />
+        <p className="text-sm text-gray-500 font-medium">Loading execution schedules...</p>
       </div>
     </div>
   );
 
   if (error || !service) return (
-    <div style={{ minHeight:"100vh", background:"#f8f5ff", display:"flex", alignItems:"center", justifyContent:"center" }}>
-      <div style={{ textAlign:"center" }}>
-        <p style={{ color:"#666", marginBottom:16 }}>{error || "No service selected."}</p>
-        <button onClick={() => router.back()} style={{ color:"#5d2a8b", background:"none", border:"none", cursor:"pointer", fontWeight:500 }}>← Back</button>
+    <div className="min-h-screen bg-gray-50 flex items-center justify-center p-4">
+      <div className="text-center space-y-4">
+        <p className="text-sm text-gray-500 font-medium">{error || "No active context found."}</p>
+        <button onClick={() => router.back()} className="text-xs text-[#5d2a8b] font-bold hover:underline">← Go Back</button>
       </div>
     </div>
   );
 
-  // ─── Calendar grid ─────────────────────────────────────────────────────────
-  const calDays: React.ReactNode[] = [];
-  for (let b = 0; b < firstDayOfMonth(); b++) calDays.push(<div key={`b${b}`}/>);
-  for (let d = 1; d <= daysInMonth(); d++) {
-    const avail = isAvailable(d), sel = isSelected(d), tod = isToday(d);
-    calDays.push(
-      <div key={d} onClick={() => selectDay(d)} style={{
-        aspectRatio:"1", display:"flex", alignItems:"center", justifyContent:"center",
-        borderRadius:"50%", fontSize:13, fontWeight: avail ? 500 : 400,
-        cursor: avail ? "pointer" : "default",
-        color: sel ? "#fff" : avail ? "#1a1a2e" : "#ccc",
-        background: sel ? "#5d2a8b" : "transparent",
-        border: tod && !sel ? "1.5px solid #5d2a8b" : "none",
-      }}>{d}</div>
-    );
-  }
-
-  const dateLabelStr = selectedDate ? (() => {
-    const [y,m,d] = selectedDate.split("-");
-    return `${parseInt(d)} ${MONTHS[parseInt(m)-1].slice(0,3)} ${y}`;
-  })() : "";
-
-  // ─── Render ────────────────────────────────────────────────────────────────
   return (
-    <div style={{ minHeight:"100vh", background:"#f8f5ff", fontFamily:"'DM Sans','Helvetica Neue',Arial,sans-serif" }}>
-      <div style={{ paddingTop:24, padding:"24px 32px" }} className="md:ml-[350px]">
-        <div style={{ maxWidth:720, margin:"0 auto" }}>
-          <div style={S.card}>
-
-            {/* ── Header ── */}
-            <div style={S.header}>
-              <button onClick={() => step > 1 ? setStep((step-1) as Step) : router.back()}
-                style={{ background:"rgba(255,255,255,0.15)", border:"none", borderRadius:8, color:"#fff", cursor:"pointer", width:32, height:32, display:"flex", alignItems:"center", justifyContent:"center", flexShrink:0 }}>
-                <ArrowLeft size={16}/>
+    <div className="min-h-screen bg-gray-50">
+      <div className="ml-0 md:ml-[350px] pt-8 p-4 md:p-8">
+        <div className="max-w-2xl mx-auto">
+          <div className="bg-white rounded-xl shadow-sm overflow-hidden border-2 border-[#5d2a8b]">
+            
+            {/* Header Layout */}
+            <div className="bg-gradient-to-r from-[#5d2a8b] to-[#7a3aa3] p-6 text-white flex items-center justify-between">
+              <button onClick={() => router.back()} className="flex items-center text-white hover:text-gray-300 transition-colors font-medium text-sm">
+                <ArrowLeft className="w-5 h-5 mr-1" /> Back
               </button>
-              <div style={{ flex:1, textAlign:"center", color:"#fff", fontWeight:600, fontSize:16 }}>
-                {step===1 ? "Select Date & Time" : step===2 ? "Guest Details" : step===3 ? "Choose Location" : step===4 ? "Add-ons & Pricing" : "Confirm Booking"}
-              </div>
-              <div style={{ width:32 }}/>
+              <h1 className="text-xl font-bold">Service Appointment Booking</h1>
+              <div className="w-16" />
             </div>
 
-            {/* ── Step bar ── */}
-            <StepBar step={step}/>
+            <div className="p-6 space-y-8 divide-y divide-gray-100">
 
-            {/* ════════════════════════════════════════════════════════════════
-                STEP 1 — Date & Time
-            ════════════════════════════════════════════════════════════════ */}
-            {step === 1 && (
-              <>
-                <div style={S.section}>
-                  <div style={{ fontWeight:600, fontSize:16, color:"#1a1a2e" }}>{service.name}</div>
-                  <div style={{ fontSize:13, color:"#888", marginTop:4, display:"flex", gap:12, flexWrap:"wrap" }}>
-                    <span style={{ display:"flex", alignItems:"center", gap:4 }}><Clock size={12}/>{service.duration} min</span>
-                    <span style={{ display:"flex", alignItems:"center", gap:4 }}><Globe size={12}/>West Africa Time (WAT)</span>
-                  </div>
-                  <div style={{ marginTop:6, fontSize:13, color:"#5d2a8b", fontWeight:500 }}>{formatCurrency(service.price)}</div>
+              {/* Step 1: Core Calendar View Frame */}
+              <div className="space-y-4 pt-2">
+                <h3 className="font-semibold text-gray-900 flex items-center gap-2 text-sm">
+                  <span className="w-6 h-6 bg-[#5d2a8b] text-white rounded-full flex items-center justify-center text-xs">1</span>
+                  Select Appointment Date
+                </h3>
+                
+                <div className="border border-b-gray-100 p-4 rounded-xl mb-2 text-xs bg-purple-50/20 text-gray-600 flex gap-4 flex-wrap">
+                  <span className="flex items-center gap-1"><Clock size={13} /> {service.duration} mins</span>
+                  <span className="flex items-center gap-1"><Globe size={13} /> West Africa Time (WAT)</span>
+                  <span className="font-bold text-[#5d2a8b] ml-auto">{formatCurrency(service.price)}</span>
                 </div>
 
-                {/* Calendar */}
-                <div style={S.section}>
-                  <div style={{ display:"flex", alignItems:"center", justifyContent:"space-between", marginBottom:12 }}>
-                    <button onClick={() => { if(viewMonth===1){setViewMonth(12);setViewYear(y=>y-1);}else setViewMonth(m=>m-1); }}
-                      style={{ background:"none", border:"0.5px solid #e0d6f5", borderRadius:"50%", width:30, height:30, cursor:"pointer", display:"flex", alignItems:"center", justifyContent:"center", color:"#5d2a8b" }}>
-                      <ChevronLeft size={14}/>
-                    </button>
-                    <span style={{ fontWeight:500, fontSize:15 }}>{MONTHS[viewMonth-1]} {viewYear}</span>
-                    <button onClick={() => { if(viewMonth===12){setViewMonth(1);setViewYear(y=>y+1);}else setViewMonth(m=>m+1); }}
-                      style={{ background:"none", border:"0.5px solid #e0d6f5", borderRadius:"50%", width:30, height:30, cursor:"pointer", display:"flex", alignItems:"center", justifyContent:"center", color:"#5d2a8b" }}>
-                      <ChevronRight size={14}/>
-                    </button>
-                  </div>
-                  <div style={{ display:"grid", gridTemplateColumns:"repeat(7,1fr)", marginBottom:4 }}>
-                    {DAYS.map(d=><div key={d} style={{ textAlign:"center", fontSize:11, color:"#aaa", paddingBottom:4 }}>{d}</div>)}
-                  </div>
-                  <div style={{ display:"grid", gridTemplateColumns:"repeat(7,1fr)", gap:2 }}>{calDays}</div>
+                <div className="custom-calendar-container flex justify-center bg-gray-50 p-4 rounded-xl border border-gray-200">
+                  <Calendar 
+                    onActiveStartDateChange={handleCalendarNavigate}
+                    tileDisabled={isTileDisabled}
+                    onClickDay={(value) => {
+                      const offsetDate = new Date(value.getTime() - value.getTimezoneOffset() * 60000);
+                      setSelectedDate(offsetDate.toISOString().split('T')[0]);
+                    }}
+                    value={selectedDate ? new Date(selectedDate) : null}
+                    className="w-full border-0 bg-transparent text-sm text-gray-800"
+                  />
                 </div>
-
-                {/* Time slots */}
                 {selectedDate && (
-                  <div style={S.section}>
-                    <div style={{ display:"flex", justifyContent:"space-between", marginBottom:12 }}>
-                      <span style={{ fontWeight:500, fontSize:14 }}>{dateLabelStr}</span>
-                      <span style={{ fontSize:12, color:"#888" }}>Duration: {service.duration} min</span>
-                    </div>
-                    {loadingSlots ? (
-                      <div style={{ textAlign:"center", padding:"16px 0" }}>
-                        <Loader2 size={20} style={{ animation:"spin 1s linear infinite", color:"#5d2a8b" }}/>
-                      </div>
-                    ) : slots.length === 0 ? (
-                      <p style={{ fontSize:13, color:"#888", textAlign:"center" }}>No slots available for this date.</p>
-                    ) : (
-                      <div style={{ display:"flex", flexDirection:"column", gap:8 }}>
-                        {slots.map(slot => {
-                          const isSel = selectedSlot?.time === slot.time;
-                          return (
-                            <div key={slot.time} style={{ display:"flex", alignItems:"center", gap:8 }}>
-                              <button onClick={() => setSelectedSlot(slot)} style={{
-                                flex:1, padding:"10px 14px", border: isSel ? "none" : "0.5px solid #d0c4e8",
-                                borderRadius:8, background: isSel ? "#5d2a8b" : "#fff",
-                                color: isSel ? "#fff" : "#5d2a8b", fontSize:14, fontWeight:500, cursor:"pointer",
-                              }}>{slot.displayTime}</button>
-                              {isSel && (
-                                <button onClick={() => setStep(2)} style={{
-                                  background:"#5d2a8b", color:"#fff", border:"none", borderRadius:8,
-                                  padding:"10px 16px", fontSize:14, fontWeight:500, cursor:"pointer", whiteSpace:"nowrap",
-                                }}>Next →</button>
-                              )}
-                            </div>
-                          );
-                        })}
-                      </div>
-                    )}
+                  <p className="text-xs font-bold text-green-600 flex items-center gap-1">✓ Selected Date: {selectedDate}</p>
+                )}
+              </div>
+
+              {/* Step 2: Time Slots Timeline Selection Area */}
+              <div className="space-y-4 pt-6">
+                <h3 className="font-semibold text-gray-900 flex items-center gap-2 text-sm">
+                  <span className="w-6 h-6 bg-[#5d2a8b] text-white rounded-full flex items-center justify-center text-xs">2</span>
+                  Select Time Slot
+                </h3>
+                {!selectedDate ? (
+                  <p className="text-xs text-gray-400 italic">Please select an highlighted active day on the calendar matrix above.</p>
+                ) : loadingSlots ? (
+                  <div className="text-xs text-gray-500 py-2 animate-pulse">Searching matching slots...</div>
+                ) : slots.length === 0 ? (
+                  <p className="text-xs text-gray-400 py-2">No remaining bookings found for this day view.</p>
+                ) : (
+                  <div className="grid grid-cols-2 sm:grid-cols-3 gap-2">
+                    {slots.map(slot => (
+                      <button key={slot.time} type="button" onClick={() => setSelectedSlot(slot)}
+                        className={`py-2 px-3 rounded-lg text-xs font-medium border transition-colors flex items-center justify-center gap-1 ${
+                          selectedSlot?.time === slot.time ? 'bg-[#5d2a8b] text-white' : 'bg-white text-[#5d2a8b] border-[#5d2a8b] hover:bg-purple-50/50'
+                        }`}>
+                        <Clock size={12} />{slot.displayTime}
+                      </button>
+                    ))}
                   </div>
                 )}
-              </>
-            )}
+              </div>
 
-            {step === 2 && (
-              <>
-                <div style={{ ...S.section, background:"#faf6ff" }}>
-                  <div style={{ fontSize:13, color:"#888" }}>
-                    Booking for <strong style={{ color:"#5d2a8b" }}>{dateLabelStr} at {selectedSlot?.displayTime}</strong>
-                  </div>
+              {/* Step 3: Attendee Profiles and Form */}
+              <div className="space-y-4 pt-6">
+                <div className="flex justify-between items-center">
+                  <h3 className="font-semibold text-gray-900 flex items-center gap-2 text-sm">
+                    <span className="w-6 h-6 bg-[#5d2a8b] text-white rounded-full flex items-center justify-center text-xs">3</span>
+                    Who is this booking for? <span className="text-red-500 ml-0.5">*</span>
+                  </h3>
+                  <button type="button" onClick={addGuest} className="flex items-center gap-1 px-3 py-1 bg-purple-100 hover:bg-purple-200 text-[#5d2a8b] rounded-lg text-xs font-bold transition-all">
+                    <Plus size={12} /> Add Person
+                  </button>
                 </div>
+
                 {guests.map((guest, idx) => (
-                  <div key={guest.id} style={S.section}>
-                    <div style={{ display:"flex", justifyContent:"space-between", alignItems:"center", marginBottom:12 }}>
-                      <div style={{ fontWeight:500, fontSize:14 }}>{idx === 0 ? "Your details" : `Guest ${idx + 1}`}</div>
-                      {idx > 0 && (
-                        <button onClick={() => removeGuest(guest.id)} style={{ background:"none", border:"none", cursor:"pointer", color:"#bbb" }}>
-                          <X size={16}/>
-                        </button>
-                      )}
-                    </div>
-                    <div style={{ display:"flex", flexDirection:"column", gap:10 }}>
+                  <div key={guest.id} className="p-4 border border-gray-200 rounded-xl space-y-3 bg-white relative shadow-sm">
+                    {idx > 0 && (
+                      <button type="button" onClick={() => removeGuest(guest.id)} className="absolute top-3 right-3 text-red-500 hover:text-red-700 transition-colors">
+                        <Trash2 size={15} />
+                      </button>
+                    )}
+                    <p className="text-xs font-bold text-[#5d2a8b]">{idx === 0 ? "Primary Booker Profile Information" : `Guest #${idx + 1} Profile Information`}</p>
+                    <div className="grid grid-cols-1 sm:grid-cols-2 gap-3">
                       <div>
-                        <label style={S.label}>Full name *</label>
-                        <input style={S.input} type="text" placeholder="Enter full name" value={guest.name} onChange={e => updateGuest(guest.id,"name",e.target.value)}/>
+                        <label className="text-[11px] font-bold text-gray-500 block mb-1">Full Name *</label>
+                        <input type="text" placeholder="Enter full name" value={guest.name} onChange={e => updateGuest(guest.id, "name", e.target.value)} className="w-full px-3 py-2 border bg-white rounded-lg text-xs focus:outline-none focus:border-[#5d2a8b]" required />
                       </div>
                       <div>
-                        <label style={S.label}>Email address{idx===0?" *":""}</label>
-                        <input style={S.input} type="email" placeholder="email@example.com" value={guest.email} onChange={e => updateGuest(guest.id,"email",e.target.value)}/>
+                        <label className="text-[11px] font-bold text-gray-500 block mb-1">Email Address{idx === 0 ? " *" : ""}</label>
+                        <input type="email" placeholder="email@example.com" value={guest.email} onChange={e => updateGuest(guest.id, "email", e.target.value)} className="w-full px-3 py-2 border bg-white rounded-lg text-xs focus:outline-none focus:border-[#5d2a8b]" required={idx === 0} />
                       </div>
                       {idx === 0 && (
-                        <div>
-                          <label style={S.label}>Phone number</label>
-                          <input style={S.input} type="tel" placeholder="+234..." value={guest.phone} onChange={e => updateGuest(guest.id,"phone",e.target.value)}/>
+                        <div className="sm:col-span-2">
+                          <label className="text-[11px] font-bold text-gray-500 block mb-1">Phone Number</label>
+                          <input type="tel" placeholder="+234..." value={guest.phone} onChange={e => updateGuest(guest.id, "phone", e.target.value)} className="w-full px-3 py-2 border bg-white rounded-lg text-xs focus:outline-none focus:border-[#5d2a8b]" />
                         </div>
                       )}
                       <div>
-                        <label style={S.label}>Age</label>
-                        <input style={S.input} type="number" placeholder="Age" value={guest.age} onChange={e => updateGuest(guest.id,"age",e.target.value)}/>
+                        <label className="text-[11px] font-bold text-gray-500 block mb-1">Age (Optional)</label>
+                        <input type="number" placeholder="Age" value={guest.age} onChange={e => updateGuest(guest.id, "age", e.target.value)} className="w-full px-3 py-2 border bg-white rounded-lg text-xs focus:outline-none focus:border-[#5d2a8b]" />
                       </div>
-                      <div>
-                        <label style={S.label}>Special notes</label>
-                        <textarea style={{ ...S.input, resize:"vertical" } as React.CSSProperties} rows={2} placeholder="Any special requests..." value={guest.notes} onChange={e => updateGuest(guest.id,"notes",e.target.value)}/>
+                      <div className="sm:col-span-2">
+                        <label className="text-[11px] font-bold text-gray-500 block mb-1">Special Notes or Instructions</label>
+                        <textarea placeholder="Add any custom requests notes..." value={guest.notes} onChange={e => updateGuest(guest.id, "notes", e.target.value)} rows={2} className="w-full p-3 border bg-white rounded-lg text-xs resize-none focus:outline-none focus:border-[#5d2a8b]" />
                       </div>
                     </div>
-                  </div>
-                ))}
-                <div style={S.section}>
-                  <button onClick={addGuest} style={{ display:"flex", alignItems:"center", gap:6, fontSize:13, color:"#5d2a8b", border:"0.5px solid #5d2a8b", borderRadius:8, padding:"8px 14px", background:"#fff", cursor:"pointer", fontWeight:500 }}>
-                    <Plus size={14}/> Add another person
-                  </button>
-                  <p style={{ fontSize:12, color:"#aaa", marginTop:6 }}>Each person will be booked for the same time slot.</p>
-                </div>
-                <div style={S.sectionLast}>
-                  <button style={S.btn(!guests[0].name || !guests[0].email)} disabled={!guests[0].name || !guests[0].email} onClick={() => setStep(3)}>
-                    Next: Choose Location
-                  </button>
-                </div>
-              </>
-            )}
 
-            {step === 3 && (
-              <>
-                <div style={{ ...S.section, background:"#faf6ff" }}>
-                  <div style={{ fontSize:13, color:"#888" }}>
-                    {guests.length} person{guests.length > 1 ? "s" : ""} &middot; <strong style={{ color:"#5d2a8b" }}>{dateLabelStr} at {selectedSlot?.displayTime}</strong>
-                  </div>
-                </div>
-                <div style={S.section}>
-                  <div style={{ fontWeight:500, fontSize:14, marginBottom:12 }}>Where should the service be provided?</div>
-                  <div style={{ display:"flex", flexDirection:"column", gap:8 }}>
-                    <label onClick={() => setLocationType("merchant_location")} style={{ display:"flex", alignItems:"flex-start", gap:10, padding:"10px 12px", border: locationType==="merchant_location" ? "1.5px solid #5d2a8b" : "0.5px solid #e0d6f5", borderRadius:10, cursor:"pointer", background: locationType==="merchant_location" ? "#faf6ff" : "#fff" }}>
-                      <div style={{ width:16, height:16, borderRadius:"50%", marginTop:2, flexShrink:0, border: locationType==="merchant_location" ? "5px solid #5d2a8b" : "1.5px solid #bbb" }}/>
-                      <div>
-                        <div style={{ fontSize:14, color:"#1a1a2e" }}>Merchant&apos;s registered location</div>
-                        {locationOptions?.merchantLocation?.address && (
-                          <div style={{ fontSize:12, color:"#5d2a8b", marginTop:3, display:"flex", alignItems:"center", gap:4 }}>
-                            <MapPin size={11}/>{locationOptions.merchantLocation.address}
-                          </div>
-                        )}
-                      </div>
-                    </label>
-                    <label onClick={() => setLocationType("customer_address")} style={{ display:"flex", alignItems:"flex-start", gap:10, padding:"10px 12px", border: locationType==="customer_address" ? "1.5px solid #5d2a8b" : "0.5px solid #e0d6f5", borderRadius:10, cursor:"pointer", background: locationType==="customer_address" ? "#faf6ff" : "#fff" }}>
-                      <div style={{ width:16, height:16, borderRadius:"50%", marginTop:2, flexShrink:0, border: locationType==="customer_address" ? "5px solid #5d2a8b" : "1.5px solid #bbb" }}/>
-                      <div>
-                        <div style={{ fontSize:14, color:"#1a1a2e" }}>My registered address</div>
-                        <div style={{ fontSize:12, color:"#888", marginTop:2 }}>Uses your saved address from profile</div>
-                      </div>
-                    </label>
-                    <label onClick={() => setLocationType("new_address")} style={{ display:"flex", alignItems:"flex-start", gap:10, padding:"10px 12px", border: locationType==="new_address" ? "1.5px solid #5d2a8b" : "0.5px solid #e0d6f5", borderRadius:10, cursor:"pointer", background: locationType==="new_address" ? "#faf6ff" : "#fff" }}>
-                      <div style={{ width:16, height:16, borderRadius:"50%", marginTop:2, flexShrink:0, border: locationType==="new_address" ? "5px solid #5d2a8b" : "1.5px solid #bbb" }}/>
-                      <div style={{ flex:1 }}>
-                        <div style={{ fontSize:14, color:"#1a1a2e" }}>New address</div>
-                        {locationType==="new_address" && (
-                          <input style={{ ...S.input, marginTop:8 }} type="text" placeholder="Enter full address" value={newAddress} onChange={e => setNewAddress(e.target.value)} onClick={e => e.stopPropagation()}/>
-                        )}
-                      </div>
-                    </label>
-                    <label onClick={() => setLocationType("whatsapp_location")} style={{ display:"flex", alignItems:"flex-start", gap:10, padding:"10px 12px", border: locationType==="whatsapp_location" ? "1.5px solid #5d2a8b" : "0.5px solid #e0d6f5", borderRadius:10, cursor:"pointer", background: locationType==="whatsapp_location" ? "#faf6ff" : "#fff" }}>
-                      <div style={{ width:16, height:16, borderRadius:"50%", marginTop:2, flexShrink:0, border: locationType==="whatsapp_location" ? "5px solid #5d2a8b" : "1.5px solid #bbb" }}/>
-                      <div style={{ flex:1 }}>
-                        <div style={{ fontSize:14, color:"#1a1a2e" }}>WhatsApp location link</div>
-                        {locationType==="whatsapp_location" && (
-                          <input style={{ ...S.input, marginTop:8 }} type="url" placeholder="Paste WhatsApp location URL" value={whatsappLink} onChange={e => setWhatsappLink(e.target.value)} onClick={e => e.stopPropagation()}/>
-                        )}
-                      </div>
-                    </label>
-                  </div>
-                  {locationError && (
-                    <div style={{ display:"flex", alignItems:"center", gap:6, marginTop:10, padding:"8px 12px", background:"#fff0f0", borderRadius:8, border:"1px solid #fcc" }}>
-                      <AlertCircle size={14} style={{ color:"#c00", flexShrink:0 }}/>
-                      <span style={{ fontSize:13, color:"#c00" }}>{locationError}</span>
-                    </div>
-                  )}
-                </div>
-                <div style={S.sectionLast}>
-                  <button style={S.btn(false)} onClick={validateAndProceedToSubServices}>
-                    Next: Add-ons
-                  </button>
-                </div>
-              </>
-            )}
-
-            {step === 4 && (
-              <>
-                <div style={{ ...S.section, background:"#faf6ff" }}>
-                  <div style={{ fontSize:13, color:"#888" }}>
-                    {guests.length} person{guests.length > 1 ? "s" : ""} &middot; <strong style={{ color:"#5d2a8b" }}>{dateLabelStr} at {selectedSlot?.displayTime}</strong>
-                  </div>
-                </div>
-                {subServices.length > 0 && (
-                  <div style={S.section}>
-                    <div style={{ fontWeight:500, fontSize:14, marginBottom:4 }}>Add-on services (optional)</div>
-                    <p style={{ fontSize:12, color:"#aaa", marginBottom:12 }}>Select add-ons for each person</p>
-                    {guests.map((guest, idx) => (
-                      <div key={guest.id} style={{ marginBottom:16 }}>
-                        <div style={{ fontSize:13, fontWeight:600, color:"#5d2a8b", marginBottom:8 }}>
-                          {guest.name || (idx === 0 ? "You" : `Guest ${idx + 1}`)}
-                        </div>
-                        <div style={{ display:"flex", flexDirection:"column", gap:6 }}>
+                    {/* Sub-Services Add-ons block if available */}
+                    {subServices.length > 0 && (
+                      <div className="pt-2 border-t border-gray-100">
+                        <label className="text-[10px] font-bold text-gray-400 uppercase tracking-wide block mb-2">Optional Add-ons for this Person</label>
+                        <div className="space-y-1.5">
                           {subServices.map(sub => {
-                            const checked = guest.selectedSubServices.some(s => s.subServiceId === sub.subServiceId);
+                            const isChecked = guest.selectedSubServices.some(s => s.subServiceId === sub.subServiceId);
                             return (
-                              <label key={sub.subServiceId}
-                                onClick={() => {
-                                  toggleSubService(guest.id, sub);
-                                  const next = guests.map(g => g.id===guest.id
-                                    ? { ...g, selectedSubServices: checked
-                                        ? g.selectedSubServices.filter(s => s.subServiceId !== sub.subServiceId)
-                                        : [...g.selectedSubServices, sub] }
-                                    : g);
-                                  calculatePricing(next, paymentType);
-                                }}
-                                style={{ display:"flex", alignItems:"center", gap:10, padding:"8px 12px", borderRadius:8, cursor:"pointer", background: checked ? "#f0e6ff" : "#fff", border: checked ? "1px solid #5d2a8b" : "1px solid #e0d6f5" }}>
-                                <div style={{ width:18, height:18, borderRadius:4, border:"2px solid #5d2a8b", display:"flex", alignItems:"center", justifyContent:"center", flexShrink:0, background: checked ? "#5d2a8b" : "transparent" }}>
-                                  {checked && <Check size={11} style={{ color:"#fff" }}/>}
+                              <label key={sub.subServiceId} className={`flex items-center justify-between p-2 border.5 rounded-lg cursor-pointer transition-all ${isChecked ? 'bg-purple-50/60 border-[#5d2a8b]' : 'bg-gray-50/50 border-gray-200'}`}>
+                                <div className="flex items-center gap-2">
+                                  <input type="checkbox" checked={isChecked} onChange={() => toggleSubService(guest.id, sub)} className="text-[#5d2a8b] rounded" />
+                                  <div>
+                                    <p className="text-xs font-semibold text-gray-900">{sub.name}</p>
+                                    {sub.description && <p className="text-[10px] text-gray-400 leading-tight">{sub.description}</p>}
+                                  </div>
                                 </div>
-                                <div style={{ flex:1 }}>
-                                  <div style={{ fontSize:13, fontWeight:500 }}>{sub.name}</div>
-                                  {sub.description && <div style={{ fontSize:11, color:"#888" }}>{sub.description}</div>}
-                                </div>
-                                <div style={{ fontSize:13, color:"#5d2a8b", fontWeight:600, flexShrink:0 }}>{formatCurrency(sub.price)}</div>
+                                <span className="text-xs font-bold text-[#5d2a8b]">{formatCurrency(sub.price)}</span>
                               </label>
                             );
                           })}
                         </div>
                       </div>
-                    ))}
+                    )}
+                  </div>
+                ))}
+              </div>
+
+              {/* Step 4: Venue and Location Selection */}
+              <div className="space-y-4 pt-6">
+                <h3 className="font-semibold text-gray-900 flex items-center gap-2 text-sm">
+                  <span className="w-6 h-6 bg-[#5d2a8b] text-white rounded-full flex items-center justify-center text-xs">4</span>
+                  Select Execution Venue Location
+                </h3>
+                <div className="space-y-2">
+                  {[
+                    { type: 'merchant_location', label: "Merchant's Registered Location", desc: locationOptions?.merchantLocation?.address || "Use service headquarters address" },
+                    { type: 'customer_address', label: "My Profile Address", desc: "Use saved customer address details on record" },
+                    { type: 'new_address', label: "Custom New Address", desc: "Manually input execution address parameters" },
+                    { type: 'whatsapp_location', label: "WhatsApp Live Location", desc: "Paste Google Maps location link shared via WhatsApp" }
+                  ].map((opt) => (
+                    <label key={opt.type} className={`block p-3.5 border-2 rounded-xl cursor-pointer transition-all ${locationType === opt.type ? 'border-[#5d2a8b] bg-purple-50/40' : 'border-gray-200 hover:border-purple-200'}`}>
+                      <div className="flex items-start gap-2.5">
+                        <input type="radio" name="locationGroup" checked={locationType === opt.type} onChange={() => setLocationType(opt.type as any)} className="mt-1 text-[#5d2a8b]" />
+                        <div>
+                          <p className="text-xs font-bold text-gray-900">{opt.label}</p>
+                          <p className="text-[11px] text-gray-500 mt-0.5">{opt.desc}</p>
+                        </div>
+                      </div>
+                    </label>
+                  ))}
+                </div>
+
+                {locationType === 'new_address' && (
+                  <input type="text" value={newAddress} onChange={e => setNewAddress(e.target.value)} placeholder="Enter full manual house address, street name, city, state *" className="w-full p-2.5 border bg-white rounded-lg text-xs focus:ring-1 focus:ring-[#5d2a8b] focus:outline-none" />
+                )}
+                {locationType === 'whatsapp_location' && (
+                  <input type="url" value={whatsappLink} onChange={e => setWhatsappLink(e.target.value)} placeholder="Paste shared Google Maps/WhatsApp location link URL *" className="w-full p-2.5 border bg-white rounded-lg text-xs focus:ring-1 focus:ring-[#5d2a8b] focus:outline-none" />
+                )}
+
+                {/* Static Location Information Alert Box Banner */}
+                <div className="p-4 bg-white border border-purple-200 rounded-xl flex gap-3 items-start shadow-sm mt-4">
+                  <div className="w-5 h-5 rounded-full bg-[#5d2a8b] text-white flex items-center justify-center font-serif text-xs font-bold flex-shrink-0 mt-0.5">
+                    i
+                  </div>
+                  <div>
+                    <h4 className="text-xs font-bold text-[#5d2a8b] uppercase tracking-wider">Location Information</h4>
+                    <p className="text-xs text-gray-600 mt-1 leading-relaxed">
+                      The service provider will travel to your selected location. Make sure the address is accurate and accessible.
+                    </p>
+                  </div>
+                </div>
+
+                {locationError && (
+                  <div className="p-2.5 bg-red-50 border border-red-100 rounded-lg flex items-center gap-2 text-xs text-red-600">
+                    <AlertCircle size={14} /> <span>{locationError}</span>
                   </div>
                 )}
-                <div style={S.section}>
-                  <div style={{ fontWeight:500, fontSize:14, marginBottom:12 }}>Pricing breakdown</div>
-                  {pricingLoading ? (
-                    <div style={{ textAlign:"center", padding:"12px 0" }}>
-                      <Loader2 size={18} style={{ animation:"spin 1s linear infinite", color:"#5d2a8b" }}/>
-                    </div>
-                  ) : pricingBreakdown ? (
-                    <>
-                      {pricingBreakdown.individualBreakdowns?.map((bd: any, i: number) => (
-                        <div key={i} style={{ marginBottom:10, paddingBottom:10, borderBottom:"0.5px solid #f0e6ff" }}>
-                          <div style={{ fontSize:13, fontWeight:600, color:"#5d2a8b", marginBottom:4 }}>{bd.personName || guests[i]?.name || `Person ${i+1}`}</div>
-                          <div style={S.row}><span style={{ color:"#888" }}>Base service</span><span>{formatCurrency(bd.basePrice)}</span></div>
-                          {bd.subServices?.map((s: any, j: number) => (
-                            <div key={j} style={S.row}><span style={{ color:"#888" }}>+ {s.name}</span><span style={{ color:"#5d2a8b" }}>{formatCurrency(s.price)}</span></div>
-                          ))}
-                          <div style={{ ...S.row, fontWeight:600 }}><span>Subtotal</span><span>{formatCurrency(bd.individualTotal)}</span></div>
+              </div>
+
+              {/* Step 5: Choose Split Configuration Method and Checkout Review */}
+              <div className="space-y-4 pt-6">
+                <h3 className="font-semibold text-gray-900 flex items-center gap-2 text-sm">
+                  <span className="w-6 h-6 bg-[#5d2a8b] text-white rounded-full flex items-center justify-center text-xs">5</span>
+                  Choose Payment Option & Review
+                </h3>
+                
+                {pricingLoading ? (
+                  <div className="text-center py-4 animate-pulse text-xs text-gray-500">Calculating breakdown price models...</div>
+                ) : pricingBreakdown ? (
+                  <div className="space-y-3">
+                    {/* Itemized Pricing Summary */}
+                    <div className="bg-gray-50/50 border border-gray-100 p-3.5 rounded-xl space-y-2 text-xs">
+                      <p className="font-bold text-gray-400 uppercase text-[10px] tracking-wider mb-1">Itemized Pricing Summary</p>
+                      {pricingBreakdown.individualBreakdowns?.map((bd: any, idx: number) => (
+                        <div key={idx} className="flex justify-between items-center border-b border-gray-100 pb-1.5 last:border-0 last:pb-0">
+                          <span className="text-gray-600">{bd.personName || guests[idx]?.name || `Person ${idx + 1}`} ({formatCurrency(bd.basePrice)})</span>
+                          <span className="font-semibold text-gray-900">{formatCurrency(bd.individualTotal)}</span>
                         </div>
                       ))}
-                      <div style={{ ...S.row, fontSize:15, fontWeight:700, paddingTop:6, borderTop:"0.5px solid #e0d6f5" }}>
-                        <span>Grand total</span><span style={{ color:"#5d2a8b" }}>{formatCurrency(pricingBreakdown.grandTotal)}</span>
+                      <div className="flex justify-between items-center pt-2 border-t font-bold text-[#5d2a8b]">
+                        <span>Grand Total Summary</span>
+                        <span>{formatCurrency(pricingBreakdown.grandTotal)}</span>
                       </div>
+                    </div>
+
+                    {/* Split Choices */}
+                    <div className="space-y-2">
+                      <label className={`flex items-center p-3.5 border rounded-lg cursor-pointer transition-all ${paymentType === 'full' ? 'border-[#5d2a8b] bg-purple-50/50' : 'border-gray-200'}`}>
+                        <input type="radio" name="paymentSplit" checked={paymentType === 'full'} onChange={() => setPaymentType("full")} className="text-[#5d2a8b]" />
+                        <div className="ml-3">
+                          <p className="font-bold text-gray-900 text-xs">Pay Full Settlement</p>
+                          <p className="text-[11px] text-gray-500">Pay total amount completely now ({formatCurrency(pricingBreakdown.grandTotal)})</p>
+                        </div>
+                      </label>
+
                       {pricingBreakdown.paymentOptions?.upfront?.available && (
-                        <div style={{ marginTop:14, display:"flex", flexDirection:"column", gap:8 }}>
-                          <div style={{ fontSize:13, fontWeight:500, marginBottom:4 }}>Payment option</div>
-                          <label onClick={() => setPaymentType("full")} style={{ display:"flex", alignItems:"center", gap:10, padding:"10px 12px", borderRadius:8, cursor:"pointer", border: paymentType==="full" ? "1.5px solid #5d2a8b" : "0.5px solid #e0d6f5", background: paymentType==="full" ? "#faf6ff" : "#fff" }}>
-                            <div style={{ width:16, height:16, borderRadius:"50%", flexShrink:0, border: paymentType==="full" ? "5px solid #5d2a8b" : "1.5px solid #bbb" }}/>
-                            <div>
-                              <div style={{ fontSize:13, fontWeight:500 }}>Pay full amount</div>
-                              <div style={{ fontSize:12, color:"#5d2a8b", fontWeight:600 }}>{formatCurrency(pricingBreakdown.paymentOptions.full.amount)}</div>
-                            </div>
-                          </label>
-                          <label onClick={() => setPaymentType("upfront")} style={{ display:"flex", alignItems:"center", gap:10, padding:"10px 12px", borderRadius:8, cursor:"pointer", border: paymentType==="upfront" ? "1.5px solid #5d2a8b" : "0.5px solid #e0d6f5", background: paymentType==="upfront" ? "#faf6ff" : "#fff" }}>
-                            <div style={{ width:16, height:16, borderRadius:"50%", flexShrink:0, border: paymentType==="upfront" ? "5px solid #5d2a8b" : "1.5px solid #bbb" }}/>
-                            <div>
-                              <div style={{ fontSize:13, fontWeight:500 }}>Pay {pricingBreakdown.upfrontPercentage}% upfront</div>
-                              <div style={{ fontSize:12, color:"#5d2a8b", fontWeight:600 }}>{formatCurrency(pricingBreakdown.paymentOptions.upfront.amount)}</div>
-                              <div style={{ fontSize:11, color:"#888" }}>Balance: {formatCurrency(pricingBreakdown.paymentOptions.upfront.remainingBalance)}</div>
-                            </div>
-                          </label>
-                        </div>
-                      )}
-                    </>
-                  ) : (
-                    <div style={S.row}>
-                      <span style={{ color:"#888" }}>Service cost</span>
-                      <span style={{ fontWeight:500 }}>{formatCurrency(service.price * guests.length)}</span>
-                    </div>
-                  )}
-                </div>
-                <div style={S.section}>
-                  <label style={S.label}>Additional notes (optional)</label>
-                  <textarea style={{ ...S.input, resize:"vertical" } as React.CSSProperties} rows={3} placeholder="Any special requests..." value={bookingNotes} onChange={e => setBookingNotes(e.target.value)}/>
-                </div>
-                <div style={S.sectionLast}>
-                  <button style={S.btn(false)} onClick={() => setStep(5)}>Review and Confirm</button>
-                </div>
-              </>
-            )}
-
-            {step === 5 && (
-              <>
-                <div style={S.section}>
-                  <div style={{ fontWeight:500, fontSize:14, marginBottom:14 }}>Booking summary</div>
-                  {([
-                    ["Service", service.name],
-                    ["Date & time", `${dateLabelStr}, ${selectedSlot?.displayTime}`],
-                    ["Duration", `${service.duration} min`],
-                    ["Guests", `${guests.length} person${guests.length > 1 ? "s" : ""}`],
-                    ["Location", locationType==="merchant_location" ? "Merchant address"
-                      : locationType==="customer_address" ? "My registered address"
-                      : locationType==="new_address" ? (newAddress || "New address")
-                      : "WhatsApp location"],
-                  ] as [string,string][]).map(([k,v]) => (
-                    <div key={k} style={S.row}>
-                      <span style={{ color:"#888" }}>{k}</span>
-                      <span style={{ color:"#1a1a2e", fontWeight:500 }}>{v}</span>
-                    </div>
-                  ))}
-                </div>
-
-                <div style={{ ...S.section, background:"#faf6ff" }}>
-                  <div style={{ fontWeight:500, fontSize:14, marginBottom:12 }}>Guests</div>
-                  {guests.map((g, i) => (
-                    <div key={g.id} style={{ marginBottom:8, padding:"8px 12px", background:"#fff", borderRadius:8, border:"0.5px solid #e0d6f5" }}>
-                      <div style={{ fontSize:13, fontWeight:600 }}>{g.name || `Guest ${i+1}`}</div>
-                      {g.email && <div style={{ fontSize:12, color:"#888" }}>{g.email}</div>}
-                      {g.selectedSubServices.length > 0 && (
-                        <div style={{ fontSize:12, color:"#5d2a8b", marginTop:4 }}>
-                          Add-ons: {g.selectedSubServices.map(s => s.name).join(", ")}
-                        </div>
+                        <label className={`flex items-center p-3.5 border rounded-lg cursor-pointer transition-all ${paymentType === 'upfront' ? 'border-[#5d2a8b] bg-purple-50/50' : 'border-gray-200'}`}>
+                          <input type="radio" name="paymentSplit" checked={paymentType === 'upfront'} onChange={() => setPaymentType("upfront")} className="text-[#5d2a8b]" />
+                          <div className="ml-3">
+                            <p className="font-bold text-gray-900 text-xs">Pay Upfront Deposit Portion</p>
+                            <p className="text-[11px] text-gray-500">Secure booking now for {formatCurrency(pricingBreakdown.paymentOptions.upfront.amount)} ({pricingBreakdown.upfrontPercentage}% deposit)</p>
+                            <p className="text-[10px] text-orange-600 mt-0.5">Remaining Balance: {formatCurrency(pricingBreakdown.paymentOptions.upfront.remainingBalance)}</p>
+                          </div>
+                        </label>
                       )}
                     </div>
-                  ))}
-                </div>
+                  </div>
+                ) : null}
 
-                <div style={{ ...S.section, background:"#faf6ff" }}>
-                  <div style={{ fontWeight:500, fontSize:14, marginBottom:12 }}>Payment</div>
-                  {pricingBreakdown ? (
-                    <>
-                      <div style={S.row}><span style={{ color:"#888" }}>Grand total</span><span style={{ fontWeight:600 }}>{formatCurrency(pricingBreakdown.grandTotal)}</span></div>
-                      <div style={{ ...S.row, fontSize:15, fontWeight:700, paddingTop:8, borderTop:"0.5px solid #e0d6f5", marginTop:4 }}>
-                        <span>Pay now ({paymentType === "full" ? "full" : `${pricingBreakdown.upfrontPercentage}% upfront`})</span>
-                        <span style={{ color:"#5d2a8b" }}>
-                          {formatCurrency(paymentType === "full" ? pricingBreakdown.grandTotal : pricingBreakdown.upfrontAmount)}
-                        </span>
-                      </div>
-                      {paymentType === "upfront" && (
-                        <div style={{ fontSize:12, color:"#888", marginTop:4 }}>
-                          Remaining balance: {formatCurrency(pricingBreakdown.remainingBalance)}
-                        </div>
-                      )}
-                    </>
-                  ) : (
-                    <div style={S.row}>
-                      <span style={{ color:"#888" }}>Service cost</span>
-                      <span style={{ fontWeight:600 }}>{formatCurrency(service.price * guests.length)}</span>
-                    </div>
-                  )}
-                </div>
-
-                <div style={S.section}>
-                  <div style={{ fontWeight:500, fontSize:13, marginBottom:8 }}>Service provider</div>
-                  <div style={{ display:"flex", alignItems:"center", gap:6, fontSize:13, color:"#888" }}>
-                    <Phone size={12} style={{ color:"#5d2a8b" }}/>
-                    <span>{locationOptions?.merchantLocation?.address || "Contact provider for details"}</span>
+                {/* Terms and Conditions Card Box Container */}
+                <div className="p-4 bg-white border border-purple-200 rounded-xl flex gap-3 items-start shadow-sm mt-4">
+                  <span className="text-sm mt-0.5 flex-shrink-0">📄</span>
+                  <div>
+                    <h4 className="text-xs font-bold text-[#5d2a8b] uppercase tracking-wider">Terms & Conditions</h4>
+                    <p className="text-xs text-gray-600 mt-1 leading-relaxed">
+                      By confirming this booking, you agree to our terms of service and cancellation policy. The service provider will contact you to confirm the appointment details.
+                    </p>
                   </div>
                 </div>
 
-                <div style={S.sectionLast}>
-                  <button onClick={handleConfirm} disabled={isSubmitting} style={S.btn(isSubmitting)}>
-                    {isSubmitting
-                      ? <><Loader2 size={16} style={{ animation:"spin 1s linear infinite" }}/> Processing...</>
-                      : `Confirm and Pay ${pricingBreakdown ? formatCurrency(paymentType==="full" ? pricingBreakdown.grandTotal : pricingBreakdown.upfrontAmount) : ""}`
-                    }
-                  </button>
+                <div className="p-3.5 bg-gray-50 border border-gray-200 rounded-lg flex gap-3 items-start">
+                  <Lock className="w-4 h-4 text-green-600 mt-0.5 flex-shrink-0" />
+                  <div>
+                    <p className="font-bold text-gray-900 text-xs">Secure Payment Escrow Processing</p>
+                    <p className="text-[11px] text-gray-500 mt-0.5">Transactions are coordinated securely over Flutterwave infrastructure. Slots hold once verified.</p>
+                  </div>
                 </div>
-              </>
-            )}
 
+                <button onClick={handleConfirm} disabled={isSubmitting || !selectedDate || !selectedSlot || !guests[0].name}
+                  className="w-full py-3.5 rounded-lg font-bold text-white bg-[#5d2a8b] hover:bg-[#7a3aa3] text-sm transition-colors shadow-md flex items-center justify-center gap-2">
+                  {isSubmitting ? (
+                    <>
+                      <span className="animate-spin rounded-full h-4 w-4 border-b-2 border-white" />
+                      <span>Confirming Checkout Pipeline Links...</span>
+                    </>
+                  ) : (
+                    <>
+                      <span>💳</span>
+                      <span>
+                        Confirm Booking & Pay{" "}
+                        {pricingBreakdown 
+                          ? formatCurrency(paymentType === "full" ? pricingBreakdown.grandTotal : pricingBreakdown.paymentOptions?.upfront?.amount) 
+                          : formatCurrency(service.price * guests.length)
+                        }
+                      </span>
+                    </>
+                  )}
+                </button>
+              </div>
+
+            </div>
           </div>
         </div>
       </div>
-
-      <style>{`
-        @keyframes spin { from { transform: rotate(0deg); } to { transform: rotate(360deg); } }
-        input:focus, textarea:focus, select:focus { border-color: #5d2a8b !important; box-shadow: 0 0 0 2px rgba(93,42,139,0.12); }
-      `}</style>
     </div>
   );
 };
