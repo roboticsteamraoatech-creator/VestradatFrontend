@@ -21,6 +21,7 @@ import Link from 'next/link';
 import Image from 'next/image';
 import { usePathname } from 'next/navigation';
 import { LogoutModal } from './logoutModal';
+import { useAuthContext } from '@/AuthContext';
 
 interface SidebarProps {
   onShow: boolean;
@@ -61,6 +62,7 @@ const MenuBtn: React.FC<MenuBtnProps> = ({ icon, positioning = '', onClick, togg
 
 export const AdminSidebar: React.FC<SidebarProps> = ({ onShow, setShow }) => {
   const pathname = usePathname();
+  const { signOut } = useAuthContext();
   const [showLogoutModal, setShowLogoutModal] = useState(false);
   const [expandedMenu, setExpandedMenu] = useState<string | null>(null);
   const sidebarRef = useRef<HTMLDivElement>(null);
@@ -103,9 +105,8 @@ export const AdminSidebar: React.FC<SidebarProps> = ({ onShow, setShow }) => {
   };
 
   const handleConfirmLogout = () => {
-    console.log('Logging out...');
     setShowLogoutModal(false);
-    alert('Logged out successfully!');
+    signOut();
   };
 
   const handleCancelLogout = () => {
@@ -504,7 +505,13 @@ export const AdminSidebar: React.FC<SidebarProps> = ({ onShow, setShow }) => {
                 ))}
               </div>
 
-              <div className="sidebar-logout mt-auto" style={{ display: 'flex', alignItems: 'center', paddingTop: '30px', marginLeft: '38px' }}>
+              <div className="mt-auto flex flex-col gap-2" style={{ paddingTop: '30px', marginLeft: '38px' }}>
+                <Link href="/admin/profile">
+                  <div className={`manrope flex items-center rounded-lg cursor-pointer hover:bg-gray-50 transition-all duration-200 ${isActive('/admin/profile') ? 'bg-[#5D2A8B]' : ''}`} style={{ width: '230px', height: '45px', padding: '0 15px', gap: '12px' }}>
+                    <User className={`w-5 h-5 ${isActive('/admin/profile') ? 'text-white' : 'text-[#6E6E6EB2]'}`} />
+                    <span className="manrope" style={{ fontWeight: 500, fontSize: '16px', color: isActive('/admin/profile') ? '#FFFFFF' : '#6E6E6EB2' }}>My Profile</span>
+                  </div>
+                </Link>
                 <button className="manrope flex items-center hover:opacity-80 cursor-pointer" style={{ gap: '12px', background: 'none', border: 'none', padding: 0 }} onClick={handleLogoutClick}>
                   <LogOut className="w-6 h-6 text-[#FF6161]" />
                   <span className="manrope" style={{ fontWeight: 500, fontSize: '20px', lineHeight: '100%', color: '#FF6161' }}>Logout</span>

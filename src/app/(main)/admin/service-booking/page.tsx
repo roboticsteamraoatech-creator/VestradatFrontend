@@ -78,7 +78,7 @@ const ServiceBookingPage = () => {
 
   if (loading) {
     return (
-      <div className="min-h-screen bg-gray-50 flex items-center justify-center ml-0 md:ml-[350px]">
+      <div className="min-h-screen bg-gray-50 flex items-center justify-center">
         <div className="text-center">
           <div className="animate-spin rounded-full h-12 w-12 border-b-2 border-purple-600 mx-auto"></div>
           <p className="mt-4 text-gray-600">Loading service bookings...</p>
@@ -94,7 +94,7 @@ const ServiceBookingPage = () => {
         * { font-family: 'Manrope', sans-serif; }
       `}</style>
 
-      <div className="ml-0 md:ml-[350px] pt-8 p-4 md:p-8 min-h-screen">
+      <div className="pt-8 p-4 md:p-8 min-h-screen">
         <div className="mb-6 flex items-center justify-between">
           <div>
             <h1 className="text-2xl font-bold text-gray-900">Service Bookings</h1>

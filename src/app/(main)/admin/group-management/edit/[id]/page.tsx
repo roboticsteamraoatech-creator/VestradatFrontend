@@ -103,7 +103,7 @@ const EditGroupPage = () => {
 
   if (loadingGroup && !group) {
     return (
-      <div className="manrope ml-0 md:ml-[350px] pt-8 md:pt-8 p-4 md:p-8 min-h-screen">
+      <div className="manrope pt-8 p-4 md:p-8 min-h-screen">
         <div className="max-w-4xl mx-auto">
           <button 
             onClick={() => router.back()}
@@ -126,7 +126,7 @@ const EditGroupPage = () => {
   // If group is still null after loading, then it truly doesn't exist
   if (!group) {
     return (
-      <div className="manrope ml-0 md:ml-[350px] pt-8 md:pt-8 p-4 md:p-8 min-h-screen">
+      <div className="manrope pt-8 p-4 md:p-8 min-h-screen">
         <div className="max-w-4xl mx-auto">
           <button 
             onClick={() => router.back()}
@@ -152,7 +152,7 @@ const EditGroupPage = () => {
         .manrope { font-family: 'Manrope', sans-serif; }
       `}</style>
 
-      <div className="ml-0 md:ml-[350px] pt-8 md:pt-8 p-4 md:p-8 min-h-screen">
+      <div className="pt-8 p-4 md:p-8 min-h-screen">
         {/* Header */}
         <div className="mb-6">
           <button 

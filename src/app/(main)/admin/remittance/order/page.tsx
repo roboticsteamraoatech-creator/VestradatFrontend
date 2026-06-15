@@ -149,11 +149,11 @@ const OrderPage = () => {
                     </td>
                   </tr>
                 ) : (
-                  settlements.map((s) => {
+                  settlements.map((s, idx) => {
                     const r = s.remittance;
                     const isPending = r.remittanceStatus !== 'confirmed';
                     return (
-                      <tr key={s.orderId} className="hover:bg-gray-50">
+                      <tr key={s.orderId || idx} className="hover:bg-gray-50">
                         <td className="px-4 py-3 text-sm font-mono text-gray-600">
                           {s.orderId?.slice(-10) || 'N/A'}
                         </td>

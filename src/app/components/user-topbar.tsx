@@ -113,16 +113,12 @@ export const UserTopBar = () => {
 
           {/* Avatar and Dropdown */}
           <div className="relative" ref={dropdownRef}>
-            <button
-              className="flex items-center cursor-pointer bg-transparent border-none p-0 gap-1.5"
-              onClick={(e) => {
-                e.preventDefault();
-                e.stopPropagation();
-                setShowDropdown(!showDropdown);
-              }}
-              type="button"
-            >
-              <div className="relative overflow-hidden flex items-center justify-center w-[40px] h-[40px] rounded-full bg-[#6D1E1E]">
+            <div className="flex items-center gap-1.5">
+              <button
+                type="button"
+                onClick={() => router.push('/admin/profile')}
+                className="relative overflow-hidden flex items-center justify-center w-[40px] h-[40px] rounded-full bg-[#6D1E1E] cursor-pointer hover:opacity-90 transition-opacity"
+              >
                 <Image
                   src="/Frame 1707479300.png"
                   alt="User Avatar"
@@ -130,9 +126,19 @@ export const UserTopBar = () => {
                   height={40}
                   className="object-cover"
                 />
-              </div>
-              <ChevronDown className="text-gray-600 w-[22px] h-[22px]" />
-            </button>
+              </button>
+              <button
+                type="button"
+                className="cursor-pointer bg-transparent border-none p-0"
+                onClick={(e) => {
+                  e.preventDefault();
+                  e.stopPropagation();
+                  setShowDropdown(!showDropdown);
+                }}
+              >
+                <ChevronDown className="text-gray-600 w-[22px] h-[22px]" />
+              </button>
+            </div>
 
             {showDropdown && (
               <div
@@ -142,7 +148,7 @@ export const UserTopBar = () => {
                 <div className="flex flex-col gap-5">
                   <button
                     className="w-full text-left bg-transparent border-none manrope font-medium text-lg text-[#1A1A1A] cursor-pointer p-0 hover:text-[#5D2A8B] transition-colors"
-                    onClick={() => { setShowDropdown(false); router.push('/user/profile'); }}
+                    onClick={() => { setShowDropdown(false); router.push('/admin/profile'); }}
                   >
                     Profile
                   </button>
