@@ -226,24 +226,48 @@ export class GalleryService {
   }
 
   // Create a new gallery item
-  static async createGalleryItem(token: string, data: GalleryItemCreateData): Promise<{ success: boolean; data?: { galleryItem: GalleryItem }; message?: string }> {
+  static async createGalleryItem(
+    token: string,
+    data: GalleryItemCreateData,
+    imageFile?: File
+  ): Promise<{ success: boolean; data?: { galleryItem: GalleryItem }; message?: string }> {
     try {
-      console.log('GalleryService: Creating gallery item with data:', JSON.stringify(data, null, 2));
-      const fullUrl = `${BASE_URL}${routes.gallery.base}`;
-      console.log('GalleryService: POST request to:', fullUrl);
-      const response = await fetch(fullUrl, {
-        method: 'POST',
-        headers: this.getHeaders(token),
-        body: JSON.stringify(data)
-      });
+      if (!data.name || !data.categoryId || !data.industryId || !data.itemType) {
+        return { success: false, message: 'Name, categoryId, industryId, and itemType are required' };
+      }
 
+      const fullUrl = `${BASE_URL}${routes.gallery.base}`;
+
+      let requestInit: RequestInit;
+
+      if (imageFile) {
+        // Send as multipart/form-data so the image is stored with the item at creation time
+        const fd = new FormData();
+        for (const [key, value] of Object.entries(data)) {
+          if (value === undefined || value === null) continue;
+          if (typeof value === 'object') {
+            fd.append(key, JSON.stringify(value));
+          } else {
+            fd.append(key, String(value));
+          }
+        }
+        fd.append('image', imageFile);
+        requestInit = {
+          method: 'POST',
+          headers: { 'Authorization': `Bearer ${token}` },
+          body: fd
+        };
+      } else {
+        requestInit = {
+          method: 'POST',
+          headers: this.getHeaders(token),
+          body: JSON.stringify(data)
+        };
+      }
+
+      const response = await fetch(fullUrl, requestInit);
       console.log('GalleryService: Create response status:', response.status);
-        if (!data.name || !data.categoryId || !data.industryId || !data.itemType) {
-      return { 
-        success: false, 
-        message: 'Name, categoryId, industryId, and itemType are required' 
-      };
-    }
+
       if (!response.ok) {
         throw new Error(`HTTP ${response.status}: ${response.statusText}`);
       }

@@ -696,7 +696,7 @@ export default function AdminGalleryItemDetailsScreen() {
         <div className="max-w-7xl mx-auto flex items-center justify-end gap-3">
           {isService && canBook && (
             <button
-              onClick={() => router.push(`/admin/booking?serviceId=${itemId}`)}
+              onClick={() => router.push(`/admin/booking/create?serviceId=${itemId}`)}
               className="inline-flex items-center gap-2 px-4 py-2.5 bg-purple-600 text-white text-sm font-medium rounded-lg hover:bg-purple-700 transition-colors"
             >
               <BookOpen className="w-4 h-4" />

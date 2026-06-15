@@ -664,21 +664,22 @@ useEffect(() => {
       };
     }
 
-    // 6. Create gallery item
-    const result = await GalleryService.createGalleryItem(token, galleryData);
+    // 6. Create gallery item (include first image in the create request so imageUrl is set)
+    const result = await GalleryService.createGalleryItem(
+      token,
+      galleryData,
+      images.length > 0 ? images[0] : undefined
+    );
 
     if (result.success && result.data?.galleryItem?._id) {
       const galleryItemId = result.data.galleryItem._id;
 
       const mediaErrors: string[] = [];
 
-      // Upload images
-      if (images.length > 0) {
-        for (let i = 0; i < images.length; i++) {
-          const isMainImage = i === 0;
-          const imgRes = await GalleryService.uploadImage(token, galleryItemId, images[i], isMainImage);
-          if (!imgRes.success) mediaErrors.push(imgRes.message || 'Image upload failed');
-        }
+      // Upload any additional images (skip index 0 — already sent with create request)
+      for (let i = 1; i < images.length; i++) {
+        const imgRes = await GalleryService.uploadImage(token, galleryItemId, images[i], false);
+        if (!imgRes.success) mediaErrors.push(imgRes.message || 'Image upload failed');
       }
 
       // Upload videos
