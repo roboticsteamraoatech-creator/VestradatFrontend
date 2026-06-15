@@ -132,7 +132,7 @@ const OrganizationProfilePage: React.FC = () => {
         * { font-family: 'Manrope', sans-serif; }
       `}</style>
 
-      <div className="ml-0 md:ml-[350px] pt-8 md:pt-8 p-4 md:p-8 min-h-screen">
+      <div className="px-4 sm:px-6 lg:px-8 py-8 min-h-screen">
         <div className="mb-6">
           <button
             onClick={() => router.back()}

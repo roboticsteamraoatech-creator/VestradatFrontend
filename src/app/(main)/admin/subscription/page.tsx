@@ -2,13 +2,28 @@
 
 import type React from "react";
 import { useState, useEffect } from "react";
-import { ShieldCheck, Building, Users, MapPin, CreditCard, AlertCircle, CheckCircle, TrendingUp } from "lucide-react";
+import { ShieldCheck, Building, MapPin, CreditCard, AlertCircle, CheckCircle, TrendingUp, Layers, Package } from "lucide-react";
 import OrganizationProfileService, { OrganizationProfile } from "@/services/OrganizationProfileService";
-import LocationPaymentService, { 
-  PaymentCheckResponse, 
-  InitializePaymentResponse, 
-  VerifyPaymentResponse 
+import LocationPaymentService, {
+  PaymentCheckResponse,
+  InitializePaymentResponse,
+  VerifyPaymentResponse
 } from "@/services/LocationPaymentService";
+import { useAuthContext } from "@/AuthContext";
+import { BASE_URL } from "@/config/api";
+
+interface ActiveSubscription {
+  _id: string;
+  packageId: string;
+  packageTitle: string;
+  subscriptionDuration: string;
+  status: string;
+  startDate: string;
+  endDate: string;
+  amountPaid: number;
+  enabledModules: string[];
+  services: Array<{ serviceName: string; duration: string }>;
+}
 
 interface LocationWithStatus extends Record<string, any> {
   locationType: string;
@@ -25,7 +40,9 @@ interface LocationWithStatus extends Record<string, any> {
 }
 
 const SubscriptionPage: React.FC = () => {
+  const { user, token } = useAuthContext();
   const [organizationDetails, setOrganizationDetails] = useState<OrganizationProfile | null>(null);
+  const [activeSubscription, setActiveSubscription] = useState<ActiveSubscription | null>(null);
   const [locations, setLocations] = useState<LocationWithStatus[]>([]);
   const [loading, setLoading] = useState(true);
   const [error, setError] = useState<string | null>(null);
@@ -106,13 +123,27 @@ const SubscriptionPage: React.FC = () => {
   const loadSubscriptionData = async () => {
     try {
       setLoading(true);
-      
+
+      // Load active subscription (enabledModules + services)
+      const userId = user?.id;
+      if (userId && token) {
+        try {
+          const subRes = await fetch(`${BASE_URL}/api/user-subscriptions/user/${userId}/active`, {
+            headers: { Authorization: `Bearer ${token}` }
+          });
+          const subData = await subRes.json();
+          if (subData.success && subData.data?.subscription) {
+            setActiveSubscription(subData.data.subscription);
+          }
+        } catch (_) {}
+      }
+
       // Load organization profile
       const profileResponse = await organizationProfileService.getProfile();
       if (profileResponse.success && profileResponse.data) {
         setOrganizationDetails(profileResponse.data.profile);
       }
-      
+
       // Load locations
       const locationsResponse = await organizationProfileService.getAllLocations();
       if (locationsResponse.success && locationsResponse.data) {
@@ -189,7 +220,7 @@ const SubscriptionPage: React.FC = () => {
         * { font-family: 'Manrope', sans-serif; }
       `}</style>
 
-      <div className="ml-0 md:ml-[350px] pt-8 md:pt-8 p-4 md:p-8 min-h-screen">
+      <div className="px-4 sm:px-6 lg:px-8 py-8 min-h-screen">
         <div className="mb-8">
           <div className="flex justify-between items-center">
             <div className="flex items-center space-x-4">
@@ -198,7 +229,7 @@ const SubscriptionPage: React.FC = () => {
                 <ShieldCheck className="w-4 h-4 mr-2" />
                 Verify Profile
               </a>
-              <a href="/admin/subscription/packages" className="px-4 py-2 bg-green-600 text-white rounded-lg hover:bg-green-700 transition-colors flex items-center">
+              <a href="/admin/subscription/upgrade" className="px-4 py-2 bg-green-600 text-white rounded-lg hover:bg-green-700 transition-colors flex items-center">
                 <TrendingUp className="w-4 h-4 mr-2" />
                 Upgrade Package
               </a>
@@ -282,6 +313,57 @@ const SubscriptionPage: React.FC = () => {
           </div>
         </div>
 
+        {/* Active Subscription — Enabled Modules */}
+        {activeSubscription && (
+          <div className="bg-white rounded-xl border border-gray-200 p-6 shadow-sm mb-8">
+            <div className="flex items-center justify-between mb-4">
+              <div className="flex items-center">
+                <Layers className="w-6 h-6 text-purple-600 mr-3" />
+                <h2 className="text-xl font-bold text-gray-900">Enabled Modules</h2>
+              </div>
+              <span className="text-xs bg-purple-100 text-purple-700 font-semibold px-3 py-1 rounded-full">
+                {activeSubscription.packageTitle}
+              </span>
+            </div>
+            {activeSubscription.enabledModules && activeSubscription.enabledModules.length > 0 ? (
+              <div className="flex flex-wrap gap-2">
+                {activeSubscription.enabledModules.map((mod) => (
+                  <span
+                    key={mod}
+                    className="inline-flex items-center gap-1.5 px-3 py-1.5 bg-green-50 border border-green-200 text-green-800 text-xs font-semibold rounded-full"
+                  >
+                    <CheckCircle className="w-3.5 h-3.5 text-green-500" />
+                    {mod.replace(/_/g, ' ').toUpperCase()}
+                  </span>
+                ))}
+              </div>
+            ) : (
+              <p className="text-sm text-gray-400">No modules enabled on this subscription.</p>
+            )}
+          </div>
+        )}
+
+        {/* Active Subscription — Included Services */}
+        {activeSubscription && activeSubscription.services && activeSubscription.services.length > 0 && (
+          <div className="bg-white rounded-xl border border-gray-200 p-6 shadow-sm mb-8">
+            <div className="flex items-center mb-4">
+              <Package className="w-6 h-6 text-purple-600 mr-3" />
+              <h2 className="text-xl font-bold text-gray-900">Included Services</h2>
+            </div>
+            <div className="grid grid-cols-1 sm:grid-cols-2 lg:grid-cols-3 gap-3">
+              {activeSubscription.services.map((svc, i) => (
+                <div key={i} className="flex items-center gap-3 bg-gray-50 rounded-lg px-4 py-3 border border-gray-100">
+                  <CheckCircle className="w-4 h-4 text-green-500 shrink-0" />
+                  <div>
+                    <p className="text-sm font-medium text-gray-900">{svc.serviceName}</p>
+                    <p className="text-xs text-gray-500 capitalize">Duration: {svc.duration}</p>
+                  </div>
+                </div>
+              ))}
+            </div>
+          </div>
+        )}
+
         {/* Location Status Summary */}
         <div className="bg-white rounded-xl border border-gray-200 p-6 shadow-sm mb-8">
           <div className="flex items-center mb-6">
@@ -350,7 +432,9 @@ const SubscriptionPage: React.FC = () => {
               <div>
                 <h3 className="font-semibold text-gray-700 mb-2">Verification Status</h3>
                 <p className={`font-medium ${organizationDetails.verificationStatus === 'verified' ? 'text-green-600' : 'text-orange-600'}`}>
-                  {organizationDetails.verificationStatus.charAt(0).toUpperCase() + organizationDetails.verificationStatus.slice(1)}
+                  {organizationDetails.verificationStatus
+                    ? organizationDetails.verificationStatus.charAt(0).toUpperCase() + organizationDetails.verificationStatus.slice(1)
+                    : 'N/A'}
                 </p>
               </div>
 
@@ -382,7 +466,9 @@ const SubscriptionPage: React.FC = () => {
                     <tr key={index}>
                       <td className="px-6 py-4 whitespace-nowrap">
                         <span className={`px-2 inline-flex text-xs leading-5 font-semibold rounded-full ${location.locationType === 'headquarters' ? 'bg-blue-100 text-blue-800' : 'bg-green-100 text-green-800'}`}>
-                          {location.locationType.charAt(0).toUpperCase() + location.locationType.slice(1)}
+                          {location.locationType
+                            ? location.locationType.charAt(0).toUpperCase() + location.locationType.slice(1)
+                            : 'Unknown'}
                         </span>
                       </td>
                       <td className="px-6 py-4 whitespace-nowrap text-sm text-gray-900">{location.brandName}</td>

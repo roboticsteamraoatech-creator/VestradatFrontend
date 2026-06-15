@@ -7,7 +7,7 @@ import Image from 'next/image';
 import { AdminMeasurementService } from '@/services/AdminMeasurementService';
 import UserSubscriptionService from '@/services/UserSubscriptionService';
 import { toast } from '@/app/components/hooks/use-toast';
-import { User, Users, BarChart3, UserCheck, Key, Archive, ShoppingBag, Building, CreditCard, Ticket, Shield, Briefcase, CheckSquare, Settings, Bell } from 'lucide-react';
+import { User, Users, BarChart3, UserCheck, Key, Archive, ShoppingBag, Building, CreditCard, Ticket, Shield, Briefcase, CheckSquare, Settings, Bell, MapPin, Package, ArrowUpCircle } from 'lucide-react';
 import { useAuthContext } from '@/AuthContext';
 
 import { BASE_URL } from '@/config/api';
@@ -26,7 +26,10 @@ const QUICK_ACTIONS = [
   { label: 'All Bookings', icon: Bell, route: '/admin/booking-management', color: 'bg-rose-50 text-rose-600' },
   { label: 'Completed Tasks', icon: CheckSquare, route: '/admin/completed-tasks', color: 'bg-emerald-50 text-emerald-600' },
   { label: 'Org Profile', icon: Building, route: '/admin/org-profile', color: 'bg-amber-50 text-amber-600' },
+  { label: 'My Locations', icon: MapPin, route: '/admin/subscription/verification-badge', color: 'bg-purple-50 text-purple-600' },
   { label: 'Subscription', icon: Key, route: '/admin/subscription', color: 'bg-fuchsia-50 text-fuchsia-600' },
+  { label: 'My Packages', icon: Package, route: '/admin/subscription/packages', color: 'bg-indigo-50 text-indigo-600' },
+  { label: 'Upgrade Package', icon: ArrowUpCircle, route: '/admin/subscription/upgrade', color: 'bg-green-50 text-green-600' },
   { label: 'Service Providers', icon: User, route: '/admin/gallery/service-provider-assignment', color: 'bg-sky-50 text-sky-600' },
   { label: 'My Users', icon: Users, route: '/admin/users', color: 'bg-lime-50 text-lime-600' },
 ];

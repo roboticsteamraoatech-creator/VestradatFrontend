@@ -150,28 +150,32 @@ export const AdminSidebar: React.FC<SidebarProps> = ({ onShow, setShow }) => {
       route: '/admin/group-management', 
       icon: <Image src="/List Dropdown Streamline Carbon.png" alt="Questionnaire" width={24} height={24} className="object-contain" />,
     },
-    { 
-      id: 'verification-badge', 
-      name: 'Verification Badge', 
+    {
+      id: 'verification-badge',
+      name: 'Verification Badge',
       icon: <Image src="/List Dropdown Streamline Carbon.png" alt="Verification Badge" width={24} height={24} className="object-contain" />,
       subItems: [
+        // { id: 'org-profile', name: 'Organization Profile', route: '/admin/org-profile' },
         {
           id: 'verification-badge-main',
-          name: 'Verification Badge',
+          name: 'My Locations',
           route: '/admin/subscription/verification-badge'
         },
-        {
-          id: 'location-payment',
-          name: 'Location Payment',
-          route: '/admin/subscription/location-payment'
-        }
+        // { id: 'location-payment', name: 'Location Payments', route: '/admin/subscription/location-payment' }
       ]
     },
-    { 
-      id: 'subscription', 
-      name: 'Subscription', 
-      route: "/admin/subscription/packages",
+    {
+      id: 'subscription',
+      name: 'Subscription',
       icon: <Image src="/List Dropdown Streamline Carbon.png" alt="Subscription" width={24} height={24} className="object-contain" />,
+      subItems: [
+        // { id: 'subscription-overview', name: 'Overview', route: '/admin/subscription' },
+        {
+          id: 'subscription-packages',
+          name: 'My Packages',
+          route: '/admin/subscription/packages'
+        }
+      ]
     },
     { 
       id: 'settlements', 

@@ -1,465 +1,364 @@
-"use client";
+'use client';
 
-import type React from "react";
-import { useState, useEffect } from "react";
+import React, { useState, useEffect, useCallback } from 'react';
+import { useRouter } from 'next/navigation';
+import { useAuthContext } from '@/AuthContext';
 import {
-  ShieldCheck,
-  CheckCircle,
-  AlertCircle,
-  Plus,
-  CreditCard,
-} from "lucide-react";
-import OrganizationProfileService from "@/services/OrganizationProfileService";
-import { useAuthContext } from "@/AuthContext";
-import { useRouter } from "next/navigation";
+  MapPin, Plus, RefreshCw, CheckCircle, XCircle, Clock,
+  Trash2, Edit2, CreditCard, ShieldCheck, AlertTriangle, Loader2
+} from 'lucide-react';
+import { BASE_URL } from '@/config/api';
 
-const VerificationBadgeSubscriptionPage: React.FC = () => {
-  const { token, user } = useAuthContext();
+interface Location {
+  locationType?: string;
+  brandName?: string;
+  country?: string;
+  state?: string;
+  lga?: string;
+  city?: string;
+  cityRegion?: string;
+  houseNumber?: string;
+  street?: string;
+  landmark?: string;
+  buildingColor?: string;
+  buildingType?: string;
+  isPaidFor?: boolean;
+  verificationStatus?: string;
+  cityRegionFee?: number;
+  [key: string]: unknown;
+}
+
+function getStatus(loc: Location) {
+  if (!loc.isPaidFor) return { label: 'Pending Payment', bg: 'bg-orange-100', text: 'text-orange-700', icon: <Clock className="w-3 h-3" /> };
+  if (loc.verificationStatus === 'verified') return { label: 'Verified', bg: 'bg-green-100', text: 'text-green-700', icon: <CheckCircle className="w-3 h-3" /> };
+  if (loc.verificationStatus === 'rejected') return { label: 'Rejected', bg: 'bg-red-100', text: 'text-red-700', icon: <XCircle className="w-3 h-3" /> };
+  return { label: 'Pending Verification', bg: 'bg-yellow-100', text: 'text-yellow-700', icon: <Clock className="w-3 h-3" /> };
+}
+
+function clean(loc: any): Location {
+  const base = loc._doc ?? loc;
+  const out: Record<string, unknown> = {};
+  for (const k of Object.keys(base)) {
+    if (!k.startsWith('$') && !k.startsWith('_')) out[k] = base[k];
+  }
+  return out as Location;
+}
+
+const fmt = (n: number) =>
+  new Intl.NumberFormat('en-NG', { style: 'currency', currency: 'NGN', minimumFractionDigits: 0 }).format(n);
+
+export default function VerificationBadgePage() {
   const router = useRouter();
-  const [isAuthRestored, setIsAuthRestored] = useState(false);
-  const [locations, setLocations] = useState<any[]>([]);
-  const [profileInfo, setProfileInfo] = useState<{ businessType: 'registered' | 'unregistered'; isPublicProfile: boolean; verificationStatus: 'verified' | 'unverified' } | null>(null);
-  const [isProcessing, setIsProcessing] = useState(false);
-  const [successMessage, setSuccessMessage] = useState('');
-  const [errorMessage, setErrorMessage] = useState('');
-  const [paymentProcessing, setPaymentProcessing] = useState<number | null>(null);
-    
-  // State for delete confirmation modal
-  const [deleteModal, setDeleteModal] = useState({
-    isOpen: false,
-    locationIndex: null as number | null,
-    locationName: ''
-  });
-  
-  // Track when auth is restored from localStorage
-  useEffect(() => {
-    // Wait for the auth context to be properly initialized
-    const timer = setTimeout(() => {
-      // Check if we have a token or user data (meaning auth has been restored)
-      if ((token !== null && token !== undefined) || (user !== null && user !== undefined)) {
-        setIsAuthRestored(true);
-      }
-    }, 100); // Small delay to ensure context is fully loaded
+  const { token } = useAuthContext();
 
-    return () => clearTimeout(timer);
-  }, [token, user]);
-  
-  const organizationProfileService = new OrganizationProfileService();
+  const [locations, setLocations] = useState<Location[]>([]);
+  const [profileInfo, setProfileInfo] = useState<{ businessType?: string; isPublicProfile?: boolean; verificationStatus?: string } | null>(null);
+  const [paymentRequired, setPaymentRequired] = useState(false);
+  const [loading, setLoading] = useState(true);
+  const [error, setError] = useState('');
+  const [success, setSuccess] = useState('');
+  const [deleteModal, setDeleteModal] = useState<{ open: boolean; index: number | null; name: string }>({ open: false, index: null, name: '' });
+  const [deleting, setDeleting] = useState(false);
 
-  // Removed old sessionStorage verification flow - now using dedicated /payment/verify-location page
-
-  const handleDeleteLocation = (index: number) => {
-    const locationToDelete = locations[index];
-    setDeleteModal({
-      isOpen: true,
-      locationIndex: index,
-      locationName: locationToDelete.brandName || `Location ${index + 1}`
-    });
-  };
-
-  const confirmDeleteLocation = async () => {
-    if (deleteModal.locationIndex !== null) {
-      setIsProcessing(true);
-      try {
-        const response = await organizationProfileService.deleteLocation(deleteModal.locationIndex);
-        if (response.success) {
-          // Refetch the profile to get updated locations
-          const profileResponse = await organizationProfileService.getProfile();
-          if (profileResponse.success && profileResponse.data && profileResponse.data.profile && profileResponse.data.profile.locations) {
-            // Ensure each location has a properly initialized gallery property
-            const locationsWithGallery = profileResponse.data.profile.locations.map(location => ({
-              ...location,
-              gallery: location.gallery || { images: [], videos: [] }
-            }));
-            setLocations(locationsWithGallery);
-          }
-          setSuccessMessage('Location deleted successfully!');
-          setErrorMessage('');
-          // Clear success message after 3 seconds
-          setTimeout(() => setSuccessMessage(''), 3000);
-        } else {
-          setErrorMessage(response.message || 'Failed to delete location');
-          setSuccessMessage('');
-        }
-      } catch (error: any) {
-        console.error('Error deleting location:', error);
-        setErrorMessage(error.message || 'An unexpected error occurred');
-        setSuccessMessage('');
-      } finally {
-        setIsProcessing(false);
-        // Close the modal
-        setDeleteModal({
-          isOpen: false,
-          locationIndex: null,
-          locationName: ''
-        });
-      }
-    }
-  };
-
-  const handleMakePayment = async (locationIndex: number) => {
-    const location = locations[locationIndex];
-    const locData = location._doc ? location._doc : location;
-    
-    // Check authentication first
-    if (!token) {
-      setErrorMessage('Please login to make a payment');
-      return;
-    }
-
-    // Wait for auth to be restored before checking user data
-    if (!isAuthRestored) {
-      setErrorMessage('Loading user information... Please wait a moment and try again.');
-      return;
-    }
-
-    // Now user should be available after auth is restored
-    if (!user) {
-      setErrorMessage('User information not found. Please login again.');
-      console.error('User object is null even after auth restoration');
-      return;
-    }
-
-    // Validate user has required fields - email should ALWAYS exist for logged-in users
-    if (!user.email) {
-      console.error('User email missing. Full user object:', user);
-      setErrorMessage('User email not found. Please login again.');
-      return;
-    }
-
-    setPaymentProcessing(locationIndex);
-    setErrorMessage('');
-
+  const fetchData = useCallback(async () => {
+    if (!token) return;
+    setLoading(true);
+    setError('');
     try {
-      // Step 1: Initialize payment for this specific location with actual user data
-      const initializeUrl = '/api/payment/verified-badge/initialize';
-      
-      const { HttpService } = await import('@/services/HttpService');
-      
-      console.log('🚀 ===== INITIALIZING VERIFIED BADGE PAYMENT =====');
-      console.log('Initializing payment with user data:', {
-        email: user.email,
-        name: user.fullName || locData.brandName,
-        phone: user.phoneNumber || '+2348012345678',
-        redirect_url: `${window.location.origin}/payment/verify-verified-badge`,
-      });
-      
-      const initializeResponse = await HttpService.post<any>(initializeUrl, {
-        email: user.email,
-        name: user.fullName || locData.brandName || 'Business Owner',
-        phone: user.phoneNumber || '+2348012345678',
-        redirect_url: `${window.location.origin}/payment/verify-verified-badge`, // ✅ Redirect to verified badge verification page
-      });
-      
-      console.log('✅ Payment initialization response:', initializeResponse);
-      
-      if (!initializeResponse.success || !initializeResponse.data) {
-        throw new Error(initializeResponse.message || 'Unable to initialize payment');
+      const [profileRes, payRes] = await Promise.allSettled([
+        fetch(`${BASE_URL}/api/admin/organization-profile`, { headers: { Authorization: `Bearer ${token}` } }),
+        fetch(`${BASE_URL}/api/payment/verified-badge/check-payment-required`, { headers: { Authorization: `Bearer ${token}` } }),
+      ]);
+
+      if (profileRes.status === 'fulfilled') {
+        const d = await profileRes.value.json();
+        const profile = d.data?.profile || d.profile || d.data || {};
+        setProfileInfo({
+          businessType: profile.businessType,
+          isPublicProfile: profile.isPublicProfile,
+          verificationStatus: profile.verificationStatus,
+        });
+        setLocations((profile.locations || []).map(clean));
       }
-
-      const { paymentLink, transactionRef, amount, fee } = initializeResponse.data;
-      const locationDescription = `${locData.brandName} - ${locData.city}, ${locData.state}`;
-
-      console.log('Payment initialized successfully:', {
-        transactionRef,
-        amount,
-        location: locationDescription,
-      });
-
-      // Step 2: Redirect to Flutterwave payment page
-      if (paymentLink) {
-        // Redirect directly to Flutterwave - the returnUrl will handle redirect back
-        window.location.href = paymentLink;
-      } else {
-        throw new Error('No payment URL received from server');
+      if (payRes.status === 'fulfilled') {
+        const d = await payRes.value.json();
+        setPaymentRequired(d.data?.paymentRequired ?? false);
       }
+    } catch (e: any) {
+      setError(e.message || 'Failed to load data');
+    } finally {
+      setLoading(false);
+    }
+  }, [token]);
 
-    } catch (error: any) {
-      console.error('Payment error:', error);
-      setErrorMessage(error.message || 'Failed to process payment');
-      setPaymentProcessing(null);
+  useEffect(() => { fetchData(); }, [fetchData]);
+
+  const handleDelete = async () => {
+    if (deleteModal.index === null) return;
+    setDeleting(true);
+    try {
+      const res = await fetch(`${BASE_URL}/api/admin/organization-profile/locations/${deleteModal.index}`, {
+        method: 'DELETE',
+        headers: { Authorization: `Bearer ${token}` },
+      });
+      const d = await res.json();
+      if (!res.ok) throw new Error(d.message || 'Delete failed');
+      setSuccess('Location deleted successfully.');
+      setDeleteModal({ open: false, index: null, name: '' });
+      fetchData();
+      setTimeout(() => setSuccess(''), 3000);
+    } catch (e: any) {
+      setError(e.message);
+    } finally {
+      setDeleting(false);
     }
   };
 
-  
-  useEffect(() => {
-    const loadData = async () => {
-      try {
-       
-        const profileResponse = await organizationProfileService.getProfile();
-        if (profileResponse.success && profileResponse.data) {
-          const profile = profileResponse.data.profile;
-          setProfileInfo({
-            businessType: profile.businessType,
-            isPublicProfile: profile.isPublicProfile || false,
-            verificationStatus: profile.verificationStatus
-          });
-        
-          if ('locations' in profileResponse.data.profile && Array.isArray(profileResponse.data.profile.locations)) {
-            // Ensure each location has a properly initialized gallery property
-            const locationsWithGallery = profileResponse.data.profile.locations.map(location => ({
-              ...location,
-              gallery: location.gallery || { images: [], videos: [] }
-            }));
-            setLocations(locationsWithGallery);
-          }
-        }
-
-        // Load locations from API
-        const locationsResponse = await organizationProfileService.getAllLocations();
-        if (locationsResponse.success && locationsResponse.data) {
-          // Ensure each location has a properly initialized gallery property
-          const locationsWithGallery = locationsResponse.data.locations.map(location => ({
-            ...location,
-            gallery: location.gallery || { images: [], videos: [] }
-          }));
-          setLocations(locationsWithGallery);
-        }
-      } catch (error) {
-        console.error('Error loading data:', error);
-      }
-    };
-    
-    loadData();
-  }, []);
+  const unpaidCount = locations.filter(l => !l.isPaidFor).length;
 
   return (
-    <div className="min-h-screen bg-gray-50">
-      <style>{`
-        @import url('https://fonts.googleapis.com/css2?family=Manrope:wght@300;400;500;600;700&display=swap');
-        * { font-family: 'Manrope', sans-serif; }
-      `}</style>
+    <div className="min-h-screen bg-gray-50 px-4 sm:px-6 lg:px-8 py-8">
 
-      <div className="ml-0 md:ml-[350px] pt-8 md:pt-8 p-4 md:p-8 min-h-screen">
-        
-        <div className="mb-8">
-          <h2 className="text-2xl font-bold text-gray-900 mb-2">Organization Management</h2>
-          <p className="text-gray-600">View and manage your organization locations.</p>
+      {/* Header */}
+      <div className="flex flex-col sm:flex-row sm:items-center sm:justify-between gap-4 mb-6">
+        <div>
+          <h1 className="text-2xl font-bold text-gray-900">Organization Locations</h1>
+          <p className="text-sm text-gray-500 mt-0.5">{locations.length} location{locations.length !== 1 ? 's' : ''} registered</p>
         </div>
-        
-        {/* Display success and error messages */}
-        {successMessage && (
-          <div className="mb-4 p-4 bg-green-50 border border-green-200 rounded-lg">
-            <div className="flex items-center text-green-800">
-              <CheckCircle className="w-5 h-5 mr-2" />
-              <span>{successMessage}</span>
-            </div>
-          </div>
-        )}
-        
-        {errorMessage && (
-          <div className="mb-4 p-4 bg-red-50 border border-red-200 rounded-lg">
-            <div className="flex items-center text-red-800">
-              <AlertCircle className="w-5 h-5 mr-2" />
-              <span>{errorMessage}</span>
-            </div>
-          </div>
-        )}
-        
-        <div className="mb-8">
-        
-          {/* Actions outside the container */}
-          <div className="flex justify-between mb-4">
-            <div className="flex gap-2">
-              <a href="/admin/subscription/profile" className="px-4 py-2 bg-[#5d2a8b] text-white rounded-lg hover:bg-[#7a3aa3] transition-colors">
-                Manage Profile
-              </a>
-              
-            </div>
-            <a 
-              href="/admin/subscription/verification-badge/add-location"
-              className="px-4 py-2 bg-[#5d2a8b] text-white rounded-lg hover:bg-[#7a3aa3] transition-colors flex items-center"
-            >
-              <Plus className="w-4 h-4 mr-2" />
-              Add New Location
-            </a>
-          </div>
-                  
-          {/* Locations Table */}
-          <div className="bg-white rounded-xl border border-gray-200 p-6 shadow-sm">
-            {/* Organization Info Header */}
-            {profileInfo && (
-              <div className="mb-4 p-4 bg-gray-50 rounded-lg border border-gray-200">
-                <h3 className="font-semibold text-gray-900 mb-2">Organization Information</h3>
-                <div className="grid grid-cols-1 md:grid-cols-3 gap-2 text-sm">
-                  <div><span className="font-medium">Business Type:</span> {profileInfo.businessType}</div>
-                  <div><span className="font-medium">Public Profile:</span> {profileInfo.isPublicProfile ? 'Yes' : 'No'}</div>
-                  <div><span className="font-medium">Verification Status:</span> {profileInfo.verificationStatus}</div>
-                </div>
-              </div>
-            )}
-
-            <div className="overflow-x-auto max-h-96 overflow-y-auto">
-              <table className="min-w-full divide-y divide-gray-200">
-                <thead className="bg-gray-50">
-                  <tr>
-                    <th scope="col" className="px-6 py-3 text-left text-xs font-medium text-gray-500 uppercase tracking-wider">Type</th>
-                    <th scope="col" className="px-6 py-3 text-left text-xs font-medium text-gray-500 uppercase tracking-wider">Brand Name</th>
-                    <th scope="col" className="px-6 py-3 text-left text-xs font-medium text-gray-500 uppercase tracking-wider">Country</th>
-                    <th scope="col" className="px-6 py-3 text-left text-xs font-medium text-gray-500 uppercase tracking-wider">State</th>
-                    <th scope="col" className="px-6 py-3 text-left text-xs font-medium text-gray-500 uppercase tracking-wider">LGA</th>
-                    <th scope="col" className="px-6 py-3 text-left text-xs font-medium text-gray-500 uppercase tracking-wider">City</th>
-                    <th scope="col" className="px-6 py-3 text-left text-xs font-medium text-gray-500 uppercase tracking-wider">City Region</th>
-                    <th scope="col" className="px-6 py-3 text-left text-xs font-medium text-gray-500 uppercase tracking-wider">Address</th>
-                    <th scope="col" className="px-6 py-3 text-left text-xs font-medium text-gray-500 uppercase tracking-wider">Landmark</th>
-                    <th scope="col" className="px-6 py-3 text-left text-xs font-medium text-gray-500 uppercase tracking-wider">Building Type</th>
-                    <th scope="col" className="px-6 py-3 text-left text-xs font-medium text-gray-500 uppercase tracking-wider">Business Type</th>
-                    <th scope="col" className="px-6 py-3 text-left text-xs font-medium text-gray-500 uppercase tracking-wider">Public Profile</th>
-                    <th scope="col" className="px-6 py-3 text-left text-xs font-medium text-gray-500 uppercase tracking-wider">Paid For</th>
-                    <th scope="col" className="px-6 py-3 text-left text-xs font-medium text-gray-500 uppercase tracking-wider">Location Verification</th>
-                    <th scope="col" className="px-6 py-3 text-left text-xs font-medium text-gray-500 uppercase tracking-wider">Gallery Images</th>
-                    <th scope="col" className="px-6 py-3 text-left text-xs font-medium text-gray-500 uppercase tracking-wider">Gallery Videos</th>
-                    <th scope="col" className="px-6 py-3 text-left text-xs font-medium text-gray-500 uppercase tracking-wider">Actions</th>
-                  </tr>
-                </thead>
-                <tbody className="bg-white divide-y divide-gray-200">
-  {locations.length > 0 ? (
-    locations.map((location, index) => {
-      // Extract the actual location data from _doc if it exists
-      const locData = location._doc ? location._doc : location;
-      
-      return (
-        <tr key={index}>
-          <td className="px-6 py-4 whitespace-nowrap">
-            <span className={`px-2 inline-flex text-xs leading-5 font-semibold rounded-full ${locData.locationType === 'headquarters' ? 'bg-blue-100 text-blue-800' : 'bg-green-100 text-green-800'}`}>
-              {locData.locationType ? locData.locationType.charAt(0).toUpperCase() + locData.locationType.slice(1) : 'Unknown'}
-            </span>
-          </td>
-          <td className="px-6 py-4 whitespace-nowrap text-sm text-gray-900">{locData.brandName || 'N/A'}</td>
-          <td className="px-6 py-4 whitespace-nowrap text-sm text-gray-500">{locData.country || 'N/A'}</td>
-          <td className="px-6 py-4 whitespace-nowrap text-sm text-gray-500">{locData.state || 'N/A'}</td>
-          <td className="px-6 py-4 whitespace-nowrap text-sm text-gray-500">{locData.lga || 'N/A'}</td>
-          <td className="px-6 py-4 whitespace-nowrap text-sm text-gray-500">{locData.city || 'N/A'}</td>
-          <td className="px-6 py-4 whitespace-nowrap text-sm text-gray-500">{locData.cityRegion || 'N/A'}</td>
-          <td className="px-6 py-4 whitespace-nowrap text-sm text-gray-500">
-            {locData.houseNumber || 'N/A'} {locData.street || 'N/A'}
-          </td>
-          <td className="px-6 py-4 whitespace-nowrap text-sm text-gray-500">
-            {locData.landmark || 'N/A'}
-          </td>
-          <td className="px-6 py-4 whitespace-nowrap text-sm text-gray-500">
-            {locData.buildingType || 'N/A'}
-          </td>
-          <td className="px-6 py-4 whitespace-nowrap text-sm text-gray-500">
-            {profileInfo?.businessType || 'N/A'}
-          </td>
-          <td className="px-6 py-4 whitespace-nowrap text-sm text-gray-500">
-            {profileInfo?.isPublicProfile ? 'Yes' : 'No'}
-          </td>
-          <td className="px-6 py-4 whitespace-nowrap text-sm text-gray-500">
-            {locData.isPaidFor ? (
-              <span className="px-2 inline-flex text-xs leading-5 font-semibold rounded-full bg-green-100 text-green-800">
-                Yes
-              </span>
-            ) : (
-              <span className="px-2 inline-flex text-xs leading-5 font-semibold rounded-full bg-red-100 text-red-800">
-                No
-              </span>
-            )}
-          </td>
-          <td className="px-6 py-4 whitespace-nowrap text-sm text-gray-500">
-            <span className={`px-2 inline-flex text-xs leading-5 font-semibold rounded-full ${locData.verificationStatus === 'verified' ? 'bg-green-100 text-green-800' : locData.verificationStatus === 'pending' ? 'bg-yellow-100 text-yellow-800' : 'bg-red-100 text-red-800'}`}>
-              {locData.verificationStatus?.charAt(0).toUpperCase() + locData.verificationStatus?.slice(1) || 'N/A'}
-            </span>
-          </td>
-          <td className="px-6 py-4 whitespace-nowrap text-sm text-gray-500">
-            {locData.gallery?.images?.length || 0} images
-          </td>
-          <td className="px-6 py-4 whitespace-nowrap text-sm text-gray-500">
-            {locData.gallery?.videos?.length || 0} videos
-          </td>
-          <td className="px-6 py-4 whitespace-nowrap text-sm font-medium flex space-x-4">
-            {!locData.isPaidFor && (
-              <button
-                onClick={() => handleMakePayment(index)}
-                disabled={paymentProcessing === index}
-                className={`flex items-center px-3 py-1.5 rounded-lg text-xs font-medium transition-colors ${
-                  paymentProcessing === index
-                    ? 'bg-gray-400 cursor-not-allowed'
-                    : 'bg-[#572e7f] hover:bg-[#572e7f]'
-                } text-white`}
-              >
-                {paymentProcessing === index ? (
-                  <>
-                    <div className="animate-spin rounded-full h-3 w-3 border-b-2 border-white mr-1"></div>
-                    Processing...
-                  </>
-                ) : (
-                  <>
-                    <CreditCard className="w-3 h-3 mr-1" />
-                    Make Payment
-                  </>
-                )}
-              </button>
-            )}
-            <button
-              onClick={() => handleDeleteLocation(index)}
-              className="text-red-600 hover:text-red-900"
-            >
-              Delete
-            </button>
-          </td>
-        </tr>
-      );
-    })
-  ) : (
-    <tr>
-      <td colSpan={17} className="px-6 py-4 text-center text-sm text-gray-500">
-        No locations added yet. Click "Add New Location" to get started.
-      </td>
-    </tr>
-  )}
-</tbody>
-              </table>
-            </div>
-          </div>
+        <div className="flex items-center gap-2">
+          <button onClick={fetchData} className="p-2 hover:bg-gray-100 rounded-xl transition-colors" title="Refresh">
+            <RefreshCw className="w-4 h-4 text-gray-500" />
+          </button>
+          {/* <button
+            onClick={() => router.push('/admin/org-profile')}
+            className="px-4 py-2 border border-gray-300 text-gray-700 rounded-xl text-sm hover:bg-gray-50 transition-colors"
+          >
+            Manage Profile
+          </button> */}
+          <button
+            onClick={() => router.push('/admin/subscription/verification-badge/add-location')}
+            className="flex items-center gap-2 px-4 py-2 bg-purple-600 text-white rounded-xl text-sm font-semibold hover:bg-purple-700 transition-colors"
+          >
+            <Plus className="w-4 h-4" /> Add Location
+          </button>
         </div>
       </div>
-      
-      {/* Delete Confirmation Modal */}
-      {deleteModal.isOpen && (
-        <div className="fixed inset-0 z-50 flex items-center justify-center p-4" style={{ backgroundColor: 'rgba(0, 0, 0, 0.4)' }}>
-          <div className="fixed inset-0" onClick={() => setDeleteModal({isOpen: false, locationIndex: null, locationName: ''})}></div>
-          <div className="relative bg-white rounded-xl shadow-2xl z-50 w-full max-w-md">
-            <div className="p-6">
-              <div className="flex justify-between items-center mb-4">
-                <h3 className="text-lg font-semibold text-gray-900">Confirm Deletion</h3>
-              </div>
-              
-              <div className="mb-6">
-                <p className="text-gray-600">
-                  Are you sure you want to delete <span className="font-semibold">{deleteModal.locationName}</span>? This action cannot be undone.
-                </p>
-              </div>
-              
-              <div className="flex justify-end space-x-3">
-                <button
-                  onClick={() => setDeleteModal({isOpen: false, locationIndex: null, locationName: ''})}
-                  className="px-4 py-2 border border-gray-300 rounded-lg text-gray-700 hover:bg-gray-50"
-                  disabled={isProcessing}
-                >
-                  Cancel
-                </button>
-                <button
-                  onClick={confirmDeleteLocation}
-                  className="px-4 py-2 bg-red-600 text-white rounded-lg hover:bg-red-700"
-                  disabled={isProcessing}
-                >
-                  {isProcessing ? (
-                    <>
-                      <div className="animate-spin rounded-full h-4 w-4 border-b-2 border-white mr-2 inline-block"></div>
-                      Deleting...
-                    </>
-                  ) : 'Delete'}
-                </button>
-              </div>
+
+      {/* Toast messages */}
+      {success && (
+        <div className="mb-4 flex items-center gap-2 bg-green-50 border border-green-200 rounded-xl px-4 py-3 text-sm text-green-700">
+          <CheckCircle className="w-4 h-4 shrink-0" /> {success}
+        </div>
+      )}
+      {error && (
+        <div className="mb-4 flex items-center gap-2 bg-red-50 border border-red-200 rounded-xl px-4 py-3 text-sm text-red-700">
+          <XCircle className="w-4 h-4 shrink-0" /> {error}
+        </div>
+      )}
+
+      {/* Pay for Verification banner */}
+      {paymentRequired && unpaidCount > 0 && (
+        <div className="mb-6 bg-amber-50 border border-amber-200 rounded-2xl p-4 flex flex-col sm:flex-row sm:items-center sm:justify-between gap-3">
+          <div className="flex items-center gap-3">
+            <div className="w-8 h-8 rounded-xl bg-amber-100 flex items-center justify-center shrink-0">
+              <ShieldCheck className="w-4 h-4 text-amber-600" />
             </div>
+            <div>
+              <p className="text-sm font-bold text-amber-900">Payment Required</p>
+              <p className="text-xs text-amber-700 mt-0.5">
+                {unpaidCount} location{unpaidCount !== 1 ? 's need' : ' needs'} verification payment to get your verified badge.
+              </p>
+            </div>
+          </div>
+          <button
+            onClick={() => router.push('/admin/subscription/verified-badge-payment')}
+            className="flex items-center gap-2 px-4 py-2 bg-amber-600 text-white rounded-xl text-sm font-semibold hover:bg-amber-700 transition-colors whitespace-nowrap shrink-0"
+          >
+            <CreditCard className="w-4 h-4" /> Pay for Verification
+          </button>
+        </div>
+      )}
+
+      {/* Profile summary bar */}
+      {profileInfo && (
+        <div className="mb-5 bg-white border border-gray-200 rounded-xl px-5 py-3 flex flex-wrap items-center gap-x-6 gap-y-2 text-sm shadow-sm">
+          <div>
+            <span className="text-gray-400 text-xs">Business Type: </span>
+            <span className="font-medium text-gray-800 capitalize">{profileInfo.businessType || 'Not set'}</span>
+          </div>
+          <div>
+            <span className="text-gray-400 text-xs">Public Profile: </span>
+            <span className="font-medium text-gray-800">{profileInfo.isPublicProfile ? 'Yes' : 'No'}</span>
+          </div>
+          <div>
+            <span className="text-gray-400 text-xs">Verification: </span>
+            <span className={`font-medium capitalize ${
+              profileInfo.verificationStatus === 'verified' ? 'text-green-600' :
+              profileInfo.verificationStatus === 'pending' ? 'text-yellow-600' :
+              profileInfo.verificationStatus === 'rejected' ? 'text-red-600' : 'text-gray-600'
+            }`}>{profileInfo.verificationStatus || 'Unverified'}</span>
           </div>
         </div>
       )}
 
+      {/* Table */}
+      {loading ? (
+        <div className="flex flex-col items-center justify-center py-20 gap-3">
+          <Loader2 className="w-8 h-8 animate-spin text-purple-600" />
+          <p className="text-sm text-gray-500">Loading locations…</p>
+        </div>
+      ) : locations.length === 0 ? (
+        <div className="bg-white rounded-2xl border border-gray-200 shadow-sm p-16 text-center">
+          <MapPin className="w-12 h-12 text-gray-300 mx-auto mb-3" />
+          <p className="text-gray-700 font-semibold">No locations registered</p>
+          <p className="text-gray-400 text-sm mt-1">Add your organization locations to start the verification process.</p>
+          <button
+            onClick={() => router.push('/admin/subscription/verification-badge/add-location')}
+            className="mt-5 px-6 py-2.5 bg-purple-600 text-white rounded-xl text-sm font-semibold hover:bg-purple-700 transition-colors"
+          >
+            Add First Location
+          </button>
+        </div>
+      ) : (
+        <div className="bg-white rounded-2xl border border-gray-200 shadow-sm overflow-hidden">
+          <div className="overflow-x-auto">
+            <table className="min-w-full divide-y divide-gray-100">
+              <thead>
+                <tr className="bg-gray-50">
+                  <th className="px-5 py-3.5 text-left text-xs font-semibold text-gray-500 uppercase tracking-wider">Brand / Type</th>
+                  <th className="px-5 py-3.5 text-left text-xs font-semibold text-gray-500 uppercase tracking-wider">Address</th>
+                  <th className="px-5 py-3.5 text-left text-xs font-semibold text-gray-500 uppercase tracking-wider">Region</th>
+                  <th className="px-5 py-3.5 text-left text-xs font-semibold text-gray-500 uppercase tracking-wider">Country / State</th>
+                  <th className="px-5 py-3.5 text-left text-xs font-semibold text-gray-500 uppercase tracking-wider">Fee</th>
+                  <th className="px-5 py-3.5 text-left text-xs font-semibold text-gray-500 uppercase tracking-wider">Status</th>
+                  <th className="px-5 py-3.5 text-right text-xs font-semibold text-gray-500 uppercase tracking-wider">Actions</th>
+                </tr>
+              </thead>
+              <tbody className="divide-y divide-gray-100">
+                {locations.map((loc, index) => {
+                  const s = getStatus(loc);
+                  const address = [loc.houseNumber, loc.street].filter(Boolean).join(' ');
+                  return (
+                    <tr key={index} className="hover:bg-gray-50 transition-colors">
+
+                      {/* Brand / Type */}
+                      <td className="px-5 py-4 whitespace-nowrap">
+                        <div className="flex items-center gap-3">
+                          <div className={`w-8 h-8 rounded-lg flex items-center justify-center shrink-0 ${loc.locationType === 'headquarters' ? 'bg-purple-100' : 'bg-blue-100'}`}>
+                            <MapPin className={`w-4 h-4 ${loc.locationType === 'headquarters' ? 'text-purple-600' : 'text-blue-600'}`} />
+                          </div>
+                          <div>
+                            <p className="text-sm font-semibold text-gray-900">{loc.brandName || '—'}</p>
+                            <p className="text-xs text-gray-400 capitalize">{loc.locationType || 'branch'}</p>
+                          </div>
+                        </div>
+                      </td>
+
+                      {/* Address */}
+                      <td className="px-5 py-4">
+                        <p className="text-sm text-gray-700">{address || '—'}</p>
+                        {loc.landmark && <p className="text-xs text-gray-400 mt-0.5">Near: {loc.landmark}</p>}
+                      </td>
+
+                      {/* Region */}
+                      <td className="px-5 py-4 whitespace-nowrap">
+                        <p className="text-sm text-gray-700">{loc.cityRegion || '—'}</p>
+                        {loc.city && <p className="text-xs text-gray-400 mt-0.5">{loc.city}</p>}
+                      </td>
+
+                      {/* Country / State */}
+                      <td className="px-5 py-4 whitespace-nowrap">
+                        <p className="text-sm text-gray-700">{loc.country || '—'}</p>
+                        {loc.state && <p className="text-xs text-gray-400 mt-0.5">{loc.state}{loc.lga ? ` · ${loc.lga}` : ''}</p>}
+                      </td>
+
+                      {/* Fee */}
+                      <td className="px-5 py-4 whitespace-nowrap">
+                        {loc.cityRegionFee
+                          ? <span className="text-sm font-medium text-gray-800">{fmt(loc.cityRegionFee)}</span>
+                          : <span className="text-sm text-gray-400">—</span>
+                        }
+                      </td>
+
+                      {/* Status */}
+                      <td className="px-5 py-4 whitespace-nowrap">
+                        <span className={`inline-flex items-center gap-1.5 px-2.5 py-1 rounded-full text-xs font-semibold ${s.bg} ${s.text}`}>
+                          {s.icon} {s.label}
+                        </span>
+                      </td>
+
+                      {/* Actions */}
+                      <td className="px-5 py-4 whitespace-nowrap text-right">
+                        <div className="flex items-center justify-end gap-2">
+                          {!loc.isPaidFor && (
+                            <button
+                              onClick={() => router.push('/admin/subscription/verified-badge-payment')}
+                              className="inline-flex items-center gap-1 px-3 py-1.5 text-xs font-semibold text-white bg-purple-600 rounded-lg hover:bg-purple-700 transition-colors"
+                            >
+                              <CreditCard className="w-3.5 h-3.5" /> Pay
+                            </button>
+                          )}
+                          <button
+                            onClick={() => router.push(`/admin/subscription/verification-badge/add-location?editMode=true&locationIndex=${index}`)}
+                            className="inline-flex items-center gap-1 px-3 py-1.5 text-xs font-medium text-gray-600 border border-gray-200 rounded-lg hover:bg-gray-50 transition-colors"
+                          >
+                            <Edit2 className="w-3.5 h-3.5" /> Edit
+                          </button>
+                          <button
+                            onClick={() => setDeleteModal({ open: true, index, name: loc.brandName || `Location ${index + 1}` })}
+                            className="inline-flex items-center gap-1 px-3 py-1.5 text-xs font-medium text-red-600 border border-red-100 rounded-lg hover:bg-red-50 transition-colors"
+                          >
+                            <Trash2 className="w-3.5 h-3.5" /> Delete
+                          </button>
+                        </div>
+                      </td>
+                    </tr>
+                  );
+                })}
+              </tbody>
+            </table>
+          </div>
+
+          {/* Table footer */}
+          <div className="px-5 py-3 bg-gray-50 border-t border-gray-100 flex items-center justify-between">
+            <p className="text-xs text-gray-400">{locations.length} location{locations.length !== 1 ? 's' : ''} total</p>
+            {unpaidCount > 0 && (
+              <p className="text-xs text-orange-600 font-medium">{unpaidCount} unpaid</p>
+            )}
+          </div>
+        </div>
+      )}
+
+      {/* Delete Modal */}
+      {deleteModal.open && (
+        <div className="fixed inset-0 z-[1001] flex items-center justify-center bg-black/50 p-4">
+          <div className="bg-white rounded-2xl shadow-xl w-full max-w-sm p-6">
+            <div className="w-12 h-12 rounded-full bg-red-100 flex items-center justify-center mx-auto mb-4">
+              <AlertTriangle className="w-6 h-6 text-red-500" />
+            </div>
+            <h3 className="text-base font-bold text-gray-900 text-center mb-1">Delete Location</h3>
+            <p className="text-sm text-gray-500 text-center mb-6">
+              Are you sure you want to delete <strong>{deleteModal.name}</strong>? This cannot be undone.
+            </p>
+            <div className="flex gap-3">
+              <button
+                onClick={() => setDeleteModal({ open: false, index: null, name: '' })}
+                disabled={deleting}
+                className="flex-1 py-2.5 border border-gray-200 rounded-xl text-sm font-medium text-gray-700 hover:bg-gray-50 transition-colors"
+              >
+                Cancel
+              </button>
+              <button
+                onClick={handleDelete}
+                disabled={deleting}
+                className="flex-1 py-2.5 bg-red-600 text-white rounded-xl text-sm font-semibold hover:bg-red-700 transition-colors disabled:opacity-60 flex items-center justify-center gap-2"
+              >
+                {deleting ? <><Loader2 className="w-4 h-4 animate-spin" /> Deleting…</> : 'Delete'}
+              </button>
+            </div>
+          </div>
+        </div>
+      )}
     </div>
   );
-};
-
-export default VerificationBadgeSubscriptionPage;
+}

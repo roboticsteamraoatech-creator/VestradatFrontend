@@ -209,7 +209,7 @@ const ViewSubscriptionPackagesPage = () => {
   // Don't render anything until authentication is restored
   if (!isAuthRestored) {
     return (
-      <div className="manrope ml-0 md:ml-[350px] pt-8 md:pt-8 p-4 md:p-8 min-h-screen flex items-center justify-center">
+      <div className="min-h-screen bg-gray-50 flex items-center justify-center px-4 sm:px-6 lg:px-8 py-8">
         <div className="text-center">
           <div className="animate-spin rounded-full h-12 w-12 border-t-2 border-b-2 border-[#5D2A8B] mb-4 mx-auto"></div>
           <p className="text-lg font-medium text-gray-600">Restoring authentication...</p>
@@ -219,7 +219,7 @@ const ViewSubscriptionPackagesPage = () => {
   }
 
   return (
-    <div className="manrope ml-0 md:ml-[350px] pt-8 md:pt-8 p-4 md:p-8 min-h-screen">
+    <div className="min-h-screen bg-gray-50 px-4 sm:px-6 lg:px-8 py-8">
       <style jsx>{`
         @import url('https://fonts.googleapis.com/css2?family=Manrope:wght@300;400;500;600;700&display=swap');
         .manrope { font-family: 'Manrope', sans-serif; }
@@ -303,6 +303,12 @@ const ViewSubscriptionPackagesPage = () => {
               <button className="px-6 py-3 bg-[#5D2A8B] text-white rounded-lg hover:bg-purple-700 transition-colors duration-200 flex items-center gap-2">
                 <ShieldCheck className="w-5 h-5" />
                 Verify Profile
+              </button>
+            </Link>
+            <Link href="/admin/subscription/upgrade">
+              <button className="px-6 py-3 bg-green-600 text-white rounded-lg hover:bg-green-700 transition-colors duration-200 flex items-center gap-2">
+                <List className="w-5 h-5" />
+                Upgrade Package
               </button>
             </Link>
           </div>

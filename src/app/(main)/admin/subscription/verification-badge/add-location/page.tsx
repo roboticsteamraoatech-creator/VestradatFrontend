@@ -675,7 +675,7 @@ const AddLocationPage: React.FC = () => {
         * { font-family: 'Manrope', sans-serif; }
       `}</style>
 
-      <div className="ml-0 md:ml-[350px] pt-8 md:pt-8 p-4 md:p-8 min-h-screen">
+      <div className="px-4 sm:px-6 lg:px-8 py-8 min-h-screen">
         <div className="mb-8">
           <h2 className="text-2xl font-bold text-gray-900 mb-2">Add New Location</h2>
           <p className="text-gray-600">Fill in the location details below</p>

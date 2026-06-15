@@ -132,7 +132,7 @@ const LocationPaymentPage = () => {
 
   if (loading) {
     return (
-      <div className="manrope ml-0 md:ml-[350px] pt-8 md:pt-8 p-4 md:p-8 min-h-screen flex items-center justify-center">
+      <div className="min-h-screen bg-gray-50 flex items-center justify-center px-4 sm:px-6 lg:px-8 py-8">
         <div className="text-center">
           <div className="animate-spin rounded-full h-12 w-12 border-t-2 border-b-2 border-[#5D2A8B] mb-4 mx-auto"></div>
           <p className="text-lg font-medium text-gray-600">Loading location payments...</p>
@@ -142,7 +142,7 @@ const LocationPaymentPage = () => {
   }
 
   return (
-    <div className="manrope ml-0 md:ml-[350px] pt-8 md:pt-8 p-4 md:p-8 min-h-screen">
+    <div className="min-h-screen bg-gray-50 px-4 sm:px-6 lg:px-8 py-8">
       <style jsx>{`
         @import url('https://fonts.googleapis.com/css2?family=Manrope:wght@300;400;500;600;700&display=swap');
         .manrope { font-family: 'Manrope', sans-serif; }
