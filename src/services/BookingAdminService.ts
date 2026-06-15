@@ -200,6 +200,7 @@ export interface CreateAdminBookingRequest {
   paymentType?: 'upfront' | 'full';
   upfrontPercentage?: number;
   processPayment?: boolean;
+  redirect_url?: string;
 }
 
 export interface CreateAdminBookingResponse {

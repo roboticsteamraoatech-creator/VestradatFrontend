@@ -613,6 +613,7 @@ function BookingWizardInner() {
         paymentType,
         upfrontPercentage: upfrontPct,
         processPayment,
+        ...(processPayment && { redirect_url: `${window.location.origin}/payment/verify-booking` }),
       };
 
       const res = await BookingAdminService.createAdminBooking(payload);
@@ -623,9 +624,10 @@ function BookingWizardInner() {
           res.data?.booking?.taskId ||
           '';
         if (processPayment && res.data?.booking?.paymentLink) {
-          window.open(res.data.booking.paymentLink, '_blank');
+          window.location.href = res.data.booking.paymentLink;
+          return;
         }
-        router.push(`/admin/booking/create/success?bookingId=${bookingId}`);
+        router.push('/admin/booking-management');
       } else {
         setSubmitError((res as any).message || 'Failed to create booking.');
       }
