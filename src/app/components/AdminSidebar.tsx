@@ -62,7 +62,7 @@ const MenuBtn: React.FC<MenuBtnProps> = ({ icon, positioning = '', onClick, togg
 
 export const AdminSidebar: React.FC<SidebarProps> = ({ onShow, setShow }) => {
   const pathname = usePathname();
-  const { signOut } = useAuthContext();
+  const { signOut, user } = useAuthContext();
   const [showLogoutModal, setShowLogoutModal] = useState(false);
   const [expandedMenu, setExpandedMenu] = useState<string | null>(null);
   const sidebarRef = useRef<HTMLDivElement>(null);
@@ -79,12 +79,14 @@ export const AdminSidebar: React.FC<SidebarProps> = ({ onShow, setShow }) => {
 
   // Helper function to get text color
   const getTextColor = (route: string) => {
-    return isActive(route) ? '#FFFFFF' : '#6E6E6EB2';
+    return isActive(route) ? '#5D2A8B' : '#6E6E6EB2';
   };
 
-  // Helper function to get icon filter for active state
+  // CSS filter that converts a black icon to #5D2A8B purple
+  const PURPLE_FILTER = 'brightness(0) saturate(100%) invert(21%) sepia(77%) saturate(700%) hue-rotate(252deg) brightness(90%)';
+
   const getIconFilter = (route: string) => {
-    return isActive(route) ? 'brightness(0) invert(1)' : 'none';
+    return isActive(route) ? PURPLE_FILTER : 'none';
   };
 
   // Toggle submenu
@@ -450,11 +452,11 @@ export const AdminSidebar: React.FC<SidebarProps> = ({ onShow, setShow }) => {
                     {item.route && !item.subItems ? (
                       <Link href={item.route}>
                         <div
-                          className={`manrope flex items-center rounded-lg cursor-pointer hover:bg-gray-50 transition-all duration-200 ${isActive(item.route) ? 'bg-[#5D2A8B]' : ''}`}
+                          className={`manrope flex items-center rounded-lg cursor-pointer hover:bg-purple-50 transition-all duration-200 ${isActive(item.route) ? 'bg-[#F4EFFA]' : ''}`}
                           style={{ width: '275px', height: '71px', padding: '0 23px', marginLeft: '15px' }}
                         >
                           <div className="flex items-center w-full" style={{ gap: '12px' }}>
-                            <div className="w-6 h-6 flex items-center justify-center flex-shrink-0" style={{ filter: getIconFilter(item.route) }}>
+                            <div className="w-6 h-6 flex items-center justify-center flex-shrink-0" style={{ filter: getIconFilter(item.route), color: isActive(item.route) ? '#5D2A8B' : undefined }}>
                               {item.icon}
                             </div>
                             <span className="manrope whitespace-nowrap overflow-hidden text-ellipsis" style={{ fontWeight: 500, fontSize: '20px', lineHeight: '100%', color: getTextColor(item.route), flex: 1, minWidth: 0 }}>
@@ -466,20 +468,20 @@ export const AdminSidebar: React.FC<SidebarProps> = ({ onShow, setShow }) => {
                     ) : (
                       <div className="relative">
                         <div
-                          className={`manrope flex items-center rounded-lg cursor-pointer hover:bg-gray-50 transition-all duration-200 ${isSubmenuActive(item.subItems) ? 'bg-[#5D2A8B]' : ''}`}
+                          className={`manrope flex items-center rounded-lg cursor-pointer hover:bg-purple-50 transition-all duration-200 ${isSubmenuActive(item.subItems) ? 'bg-[#F4EFFA]' : ''}`}
                           style={{ width: '275px', height: '71px', padding: '0 23px', marginLeft: '15px' }}
                           onClick={() => toggleSubmenu(item.id)}
                         >
                           <div className="flex items-center w-full" style={{ gap: '12px' }}>
-                            <div className="w-6 h-6 flex items-center justify-center flex-shrink-0" style={{ filter: isSubmenuActive(item.subItems) ? 'brightness(0) invert(1)' : 'none' }}>
+                            <div className="w-6 h-6 flex items-center justify-center flex-shrink-0" style={{ filter: isSubmenuActive(item.subItems) ? PURPLE_FILTER : 'none', color: isSubmenuActive(item.subItems) ? '#5D2A8B' : undefined }}>
                               {item.icon}
                             </div>
-                            <span className="manrope whitespace-nowrap overflow-hidden text-ellipsis" style={{ fontWeight: 500, fontSize: '20px', lineHeight: '100%', color: isSubmenuActive(item.subItems) ? '#FFFFFF' : '#6E6E6EB2', flex: 1, minWidth: 0 }}>
+                            <span className="manrope whitespace-nowrap overflow-hidden text-ellipsis" style={{ fontWeight: 500, fontSize: '20px', lineHeight: '100%', color: isSubmenuActive(item.subItems) ? '#5D2A8B' : '#6E6E6EB2', flex: 1, minWidth: 0 }}>
                               {item.name}
                             </span>
                             <ChevronDown
                               className={`w-5 h-5 transition-transform duration-200 ${expandedMenu === item.id ? 'rotate-180' : ''}`}
-                              style={{ filter: isSubmenuActive(item.subItems) ? 'brightness(0) invert(1)' : 'none', color: isSubmenuActive(item.subItems) ? '#FFFFFF' : '#6E6E6EB2' }}
+                              style={{ color: isSubmenuActive(item.subItems) ? '#5D2A8B' : '#6E6E6EB2' }}
                             />
                           </div>
                         </div>
@@ -488,10 +490,10 @@ export const AdminSidebar: React.FC<SidebarProps> = ({ onShow, setShow }) => {
                             {item.subItems.map((subItem: SubMenuItem) => (
                               <Link href={subItem.route} key={subItem.id}>
                                 <div
-                                  className={`manrope flex items-center rounded-lg cursor-pointer hover:bg-gray-50 transition-all duration-200 ${isActive(subItem.route) ? 'bg-[#5D2A8B]' : 'bg-gray-100'}`}
+                                  className={`manrope flex items-center rounded-lg cursor-pointer hover:bg-purple-50 transition-all duration-200 ${isActive(subItem.route) ? 'bg-[#F4EFFA]' : 'bg-gray-100'}`}
                                   style={{ width: '230px', height: '45px', padding: '0 15px', borderRadius: '8px', margin: '2px 0' }}
                                 >
-                                  <span className="manrope whitespace-nowrap overflow-hidden text-ellipsis" style={{ fontWeight: 400, fontSize: '15px', lineHeight: '100%', color: isActive(subItem.route) ? '#FFFFFF' : '#6E6E6EB2', flex: 1, minWidth: 0 }}>
+                                  <span className="manrope whitespace-nowrap overflow-hidden text-ellipsis" style={{ fontWeight: 400, fontSize: '15px', lineHeight: '100%', color: isActive(subItem.route) ? '#5D2A8B' : '#6E6E6EB2', flex: 1, minWidth: 0 }}>
                                     {subItem.name}
                                   </span>
                                 </div>
@@ -505,17 +507,35 @@ export const AdminSidebar: React.FC<SidebarProps> = ({ onShow, setShow }) => {
                 ))}
               </div>
 
-              <div className="mt-auto flex flex-col gap-2" style={{ paddingTop: '30px', marginLeft: '38px' }}>
-                <Link href="/admin/profile">
-                  <div className={`manrope flex items-center rounded-lg cursor-pointer hover:bg-gray-50 transition-all duration-200 ${isActive('/admin/profile') ? 'bg-[#5D2A8B]' : ''}`} style={{ width: '230px', height: '45px', padding: '0 15px', gap: '12px' }}>
-                    <User className={`w-5 h-5 ${isActive('/admin/profile') ? 'text-white' : 'text-[#6E6E6EB2]'}`} />
-                    <span className="manrope" style={{ fontWeight: 500, fontSize: '16px', color: isActive('/admin/profile') ? '#FFFFFF' : '#6E6E6EB2' }}>My Profile</span>
-                  </div>
-                </Link>
-                <button className="manrope flex items-center hover:opacity-80 cursor-pointer" style={{ gap: '12px', background: 'none', border: 'none', padding: 0 }} onClick={handleLogoutClick}>
-                  <LogOut className="w-6 h-6 text-[#FF6161]" />
-                  <span className="manrope" style={{ fontWeight: 500, fontSize: '20px', lineHeight: '100%', color: '#FF6161' }}>Logout</span>
-                </button>
+              <div className="mt-auto" style={{ paddingTop: '40px', paddingBottom: '8px' }}>
+                {/* Divider */}
+                <div style={{ height: '1px', background: '#f0f0f0', marginBottom: '16px', marginLeft: '15px', width: '270px' }} />
+
+                {/* Profile card + logout icon */}
+                <div className="flex items-center justify-between" style={{ marginLeft: '15px', width: '270px' }}>
+                  <Link href="/admin/profile" className="flex items-center gap-3 flex-1 min-w-0 px-3 py-2 rounded-xl hover:bg-purple-50 transition-colors cursor-pointer">
+                    <div className="w-10 h-10 rounded-full bg-[#5D2A8B] flex items-center justify-center flex-shrink-0">
+                      <span className="text-white font-bold text-base">
+                        {((user as any)?.fullName || (user as any)?.firstName || 'A')[0]?.toUpperCase()}
+                      </span>
+                    </div>
+                    <div className="flex-1 min-w-0">
+                      <p className="manrope text-sm font-semibold text-gray-800 truncate leading-tight">
+                        {(user as any)?.fullName || `${(user as any)?.firstName || ''} ${(user as any)?.lastName || ''}`.trim() || 'Admin'}
+                      </p>
+                      <p className="manrope text-xs truncate capitalize" style={{ color: '#6E6E6EB2' }}>
+                        {(user as any)?.role?.toLowerCase().replace(/_/g, ' ') || 'Administrator'}
+                      </p>
+                    </div>
+                  </Link>
+                  <button
+                    onClick={handleLogoutClick}
+                    className="w-9 h-9 flex items-center justify-center rounded-xl hover:bg-red-50 transition-colors flex-shrink-0 ml-2"
+                    title="Logout"
+                  >
+                    <LogOut className="w-5 h-5 text-[#FF6161]" />
+                  </button>
+                </div>
               </div>
             </nav>
           </>
@@ -539,15 +559,15 @@ export const AdminSidebar: React.FC<SidebarProps> = ({ onShow, setShow }) => {
                 <div key={item.id} className="group relative w-full flex justify-center">
                   {item.route && !item.subItems ? (
                     <Link href={item.route}>
-                      <div className={`w-11 h-11 flex items-center justify-center rounded-xl transition-colors cursor-pointer ${active ? 'bg-[#5D2A8B]' : 'hover:bg-gray-100'}`}>
-                        <div className="w-5 h-5 flex items-center justify-center" style={{ filter: active ? 'brightness(0) invert(1)' : 'none' }}>
+                      <div className={`w-11 h-11 flex items-center justify-center rounded-xl transition-colors cursor-pointer ${active ? 'bg-[#F4EFFA]' : 'hover:bg-gray-100'}`}>
+                        <div className="w-5 h-5 flex items-center justify-center" style={{ filter: active ? PURPLE_FILTER : 'none', color: active ? '#5D2A8B' : undefined }}>
                           {item.icon}
                         </div>
                       </div>
                     </Link>
                   ) : (
-                    <button type="button" onClick={() => setShow(true)} className={`w-11 h-11 flex items-center justify-center rounded-xl transition-colors cursor-pointer ${active ? 'bg-[#5D2A8B]' : 'hover:bg-gray-100'}`}>
-                      <div className="w-5 h-5 flex items-center justify-center" style={{ filter: active ? 'brightness(0) invert(1)' : 'none' }}>
+                    <button type="button" onClick={() => setShow(true)} className={`w-11 h-11 flex items-center justify-center rounded-xl transition-colors cursor-pointer ${active ? 'bg-[#F4EFFA]' : 'hover:bg-gray-100'}`}>
+                      <div className="w-5 h-5 flex items-center justify-center" style={{ filter: active ? PURPLE_FILTER : 'none', color: active ? '#5D2A8B' : undefined }}>
                         {item.icon}
                       </div>
                     </button>
@@ -562,8 +582,25 @@ export const AdminSidebar: React.FC<SidebarProps> = ({ onShow, setShow }) => {
 
             <div className="flex-1" />
 
+            {/* Divider */}
+            <div style={{ height: '1px', background: '#f0f0f0', width: '40px', marginBottom: '8px' }} />
+
+            {/* Profile avatar */}
+            <div className="group relative w-full flex justify-center pb-1">
+              <Link href="/admin/profile">
+                <div className="w-10 h-10 rounded-full bg-[#5D2A8B] flex items-center justify-center hover:ring-2 hover:ring-purple-300 transition-all cursor-pointer">
+                  <span className="text-white font-bold text-sm">
+                    {((user as any)?.fullName || (user as any)?.firstName || 'A')[0]?.toUpperCase()}
+                  </span>
+                </div>
+              </Link>
+              <span className="absolute left-full ml-3 top-1/2 -translate-y-1/2 px-2.5 py-1.5 bg-gray-800 text-white text-xs font-medium rounded-lg opacity-0 group-hover:opacity-100 pointer-events-none z-[1000] whitespace-nowrap transition-opacity duration-150 shadow-lg">
+                My Profile
+              </span>
+            </div>
+
             {/* Logout icon */}
-            <div className="group relative w-full flex justify-center pb-2">
+            <div className="group relative w-full flex justify-center pb-4">
               <button onClick={handleLogoutClick} className="w-11 h-11 flex items-center justify-center hover:bg-red-50 rounded-xl transition-colors cursor-pointer">
                 <LogOut className="w-5 h-5 text-[#FF6161]" />
               </button>

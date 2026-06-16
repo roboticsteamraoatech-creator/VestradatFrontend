@@ -25,10 +25,18 @@ export default function EditProfilePage() {
     country: '',
     organizationName: '',
   });
+  const [initial, setInitial] = useState<FormState>({
+    firstName: '',
+    lastName: '',
+    phoneNumber: '',
+    country: '',
+    organizationName: '',
+  });
   const [role, setRole] = useState('');
   const [loading, setLoading] = useState(true);
   const [saving, setSaving] = useState(false);
   const [error, setError] = useState('');
+  const [success, setSuccess] = useState(false);
 
   useEffect(() => {
     if (!token) return;
@@ -41,13 +49,15 @@ export default function EditProfilePage() {
           const d = await res.json();
           const p = d.data?.user || d.user || d.data || d;
           setRole(p.role || '');
-          setForm({
+          const loaded: FormState = {
             firstName: p.firstName || '',
             lastName: p.lastName || '',
             phoneNumber: p.phoneNumber || '',
             country: p.country || '',
             organizationName: p.organizationName || '',
-          });
+          };
+          setForm(loaded);
+          setInitial(loaded);
         }
       } catch {}
       setLoading(false);
@@ -62,13 +72,12 @@ export default function EditProfilePage() {
     setSaving(true);
     setError('');
     try {
-      const body: Record<string, string> = {
-        firstName: form.firstName,
-        lastName: form.lastName,
-        phoneNumber: form.phoneNumber,
-        country: form.country,
-        organizationName: form.organizationName,
-      };
+      const body: Record<string, string> = {};
+      (Object.keys(form) as (keyof FormState)[]).forEach(key => {
+        if (form[key] !== initial[key]) body[key] = form[key];
+      });
+
+      if (Object.keys(body).length === 0) { router.back(); return; }
 
       const res = await fetch(`${BASE_URL}/api/auth/profile`, {
         method: 'PUT',
@@ -77,7 +86,8 @@ export default function EditProfilePage() {
       });
       const d = await res.json();
       if (!res.ok) throw new Error(d.message || 'Failed to update profile');
-      router.back();
+      setSuccess(true);
+      setTimeout(() => router.back(), 1500);
     } catch (e: any) {
       setError(e.message || 'Network error');
       setSaving(false);
@@ -117,6 +127,11 @@ export default function EditProfilePage() {
 
       {/* Form */}
       <div className="max-w-lg mx-auto px-4 py-6 space-y-5">
+        {success && (
+          <div className="bg-green-50 border border-green-200 rounded-xl px-4 py-3 text-sm text-green-700 font-medium">
+            Profile updated successfully!
+          </div>
+        )}
         {error && (
           <div className="bg-red-50 border border-red-200 rounded-xl px-4 py-3 text-sm text-red-700">
             {error}

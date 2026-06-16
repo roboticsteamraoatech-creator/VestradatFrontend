@@ -1,568 +1,408 @@
 "use client";
 
-import React, { useState, useEffect } from 'react';
+import React, { useState, useEffect, useCallback } from 'react';
 import { useRouter } from 'next/navigation';
-import { useAuth } from '@/api/hooks/useAuth';
-import DataVerificationService from '@/services/DataVerificationService';
-import { FileText, MapPin, Building, CheckCircle, Clock, Plus, Eye, Search } from 'lucide-react';
+import { useAuthContext } from '@/AuthContext';
+import {
+  Building, MapPin, Clock, CheckCircle, FileText,
+  Eye, Play, RefreshCw, Loader2, Search, XCircle, AlertCircle
+} from 'lucide-react';
+import { BASE_URL } from '@/config/api';
+
+// ── Types ──────────────────────────────────────────────────────────────────
+
+interface LocationDetail {
+  locationType?: string;
+  brandName?: string;
+  country?: string;
+  state?: string;
+  lga?: string;
+  city?: string;
+  cityRegion?: string;
+  houseNumber?: string;
+  street?: string;
+  landmark?: string;
+  buildingColor?: string;
+  buildingType?: string;
+}
 
 interface Assignment {
   _id: string;
   organizationId: string;
   organizationName: string;
   targetUserId: string;
-  targetUserName: string;
-  targetUserEmail: string;
-  organizationLocationDetails: Array<{
-    locationType: string;
-    brandName: string;
-    country: string;
-    state: string;
-    lga: string;
-    city: string;
-    cityRegion: string;
-    houseNumber: string;
-    street: string;
-    landmark: string;
-    buildingColor?: string;
-    buildingType?: string;
-  }>;
-  status: 'pending' | 'in_progress' | 'completed';
+  targetUserName?: string;
+  targetUserFirstName?: string;
+  targetUserLastName?: string;
+  targetUserEmail?: string;
+  organizationLocationDetails: LocationDetail[];
+  status: string;
   assignedAt: string;
   verificationId?: string;
 }
 
+interface Verification {
+  _id: string;
+  verificationId?: string;
+  organizationName?: string;
+  assignmentId?: string;
+  status?: string;
+  createdAt: string;
+}
+
+// ── Helpers ────────────────────────────────────────────────────────────────
+
+const STATUS_STYLE: Record<string, { bg: string; text: string }> = {
+  pending:     { bg: 'bg-amber-100',  text: 'text-amber-700' },
+  in_progress: { bg: 'bg-blue-100',   text: 'text-blue-700' },
+  completed:   { bg: 'bg-green-100',  text: 'text-green-700' },
+  approved:    { bg: 'bg-green-100',  text: 'text-green-700' },
+  draft:       { bg: 'bg-amber-100',  text: 'text-amber-700' },
+  submitted:   { bg: 'bg-blue-100',   text: 'text-blue-700' },
+  rejected:    { bg: 'bg-red-100',    text: 'text-red-700' },
+};
+
+const StatusBadge = ({ status }: { status: string }) => {
+  const s = STATUS_STYLE[status?.toLowerCase()] || { bg: 'bg-gray-100', text: 'text-gray-600' };
+  return (
+    <span className={`inline-flex items-center px-2.5 py-0.5 rounded-full text-xs font-semibold ${s.bg} ${s.text}`}>
+      {status?.replace(/_/g, ' ')}
+    </span>
+  );
+};
+
+const fmtDate = (d: string) => {
+  try { return new Date(d).toLocaleDateString('en-NG', { year: 'numeric', month: 'short', day: 'numeric' }); }
+  catch { return d; }
+};
+
+// ── Main Component ─────────────────────────────────────────────────────────
+
 const FieldAgentPage = () => {
   const router = useRouter();
-  const { user, token } = useAuth();
+  const { token } = useAuthContext();
+
+  const [tab, setTab] = useState<'assignments' | 'verifications'>('assignments');
   const [assignments, setAssignments] = useState<Assignment[]>([]);
+  const [verifications, setVerifications] = useState<Verification[]>([]);
   const [loading, setLoading] = useState(true);
-  const [error, setError] = useState<string | null>(null);
-  const [searchTerm, setSearchTerm] = useState('');
-  const [statusFilter, setStatusFilter] = useState<'all' | 'pending' | 'in_progress' | 'completed'>('all');
-  const [showCreateModal, setShowCreateModal] = useState(false);
-  const [selectedAssignment, setSelectedAssignment] = useState<Assignment | null>(null);
+  const [error, setError] = useState('');
+  const [search, setSearch] = useState('');
+  const [statusFilter, setStatusFilter] = useState('all');
 
-  const dataVerificationService = new DataVerificationService();
-
-  useEffect(() => {
-    if (token) {
-      fetchAssignments();
-    } else {
-      setError('Please log in to view assignments');
-      setLoading(false);
-    }
+  const fetchAssignments = useCallback(async () => {
+    if (!token) return;
+    try {
+      const res = await fetch(`${BASE_URL}/api/data-verification/assignments/my`, {
+        headers: { Authorization: `Bearer ${token}` },
+      });
+      const data = await res.json();
+      if (data.success) setAssignments(data.data?.assignments || data.assignments || []);
+    } catch {}
   }, [token]);
 
-  const fetchAssignments = async () => {
+  const fetchVerifications = useCallback(async () => {
+    if (!token) return;
     try {
-      setLoading(true);
-      setError(null);
-      
-      if (!token) {
-        setError('No authentication token found');
-        return;
-      }
+      const res = await fetch(`${BASE_URL}/api/data-verification/my-verifications`, {
+        headers: { Authorization: `Bearer ${token}` },
+      });
+      const data = await res.json();
+      if (data.success) setVerifications(data.data?.verifications || data.verifications || []);
+    } catch {}
+  }, [token]);
 
-      const response = await dataVerificationService.getMyAssignments(token);
-      
-      if (response.success && response.data) {
-        setAssignments(response.data.assignments);
-      } else {
-        setError(response.message || 'Failed to fetch assignments');
-      }
-    } catch (err) {
-      setError('Failed to connect to server');
-      console.error('Error fetching assignments:', err);
+  const loadAll = useCallback(async () => {
+    setLoading(true);
+    setError('');
+    try {
+      await Promise.all([fetchAssignments(), fetchVerifications()]);
+    } catch (e: any) {
+      setError(e.message || 'Failed to load data');
     } finally {
       setLoading(false);
     }
-  };
+  }, [fetchAssignments, fetchVerifications]);
 
-  const getStatusColor = (status: string) => {
-    switch (status) {
-      case 'pending': return 'bg-yellow-100 text-yellow-800';
-      case 'in_progress': return 'bg-blue-100 text-blue-800';
-      case 'completed': return 'bg-green-100 text-green-800';
-      default: return 'bg-gray-100 text-gray-800';
-    }
-  };
+  useEffect(() => { if (token) loadAll(); }, [token, loadAll]);
 
-  const getStatusIcon = (status: string) => {
-    switch (status) {
-      case 'pending': return <Clock className="w-4 h-4" />;
-      case 'in_progress': return <FileText className="w-4 h-4" />;
-      case 'completed': return <CheckCircle className="w-4 h-4" />;
-      default: return <FileText className="w-4 h-4" />;
-    }
-  };
+  // ── Stats ────────────────────────────────────────────────────────────────
 
-  const formatDate = (dateString: string) => {
-    return new Date(dateString).toLocaleDateString('en-NG', {
-      year: 'numeric',
-      month: 'short',
-      day: 'numeric',
-      hour: '2-digit',
-      minute: '2-digit'
-    });
-  };
+  const stats = [
+    { label: 'Total Assignments', value: assignments.length, icon: <FileText className="w-5 h-5 text-purple-600" />, bg: 'bg-purple-100' },
+    { label: 'Pending', value: assignments.filter(a => a.status === 'pending').length, icon: <Clock className="w-5 h-5 text-purple-600" />, bg: 'bg-purple-100' },
+    { label: 'In Progress', value: assignments.filter(a => a.status === 'in_progress').length, icon: <Play className="w-5 h-5 text-purple-600" />, bg: 'bg-purple-100' },
+    { label: 'Completed', value: assignments.filter(a => a.status === 'completed').length, icon: <CheckCircle className="w-5 h-5 text-purple-600" />, bg: 'bg-purple-100' },
+  ];
 
-  const handleCreateVerification = (assignment: Assignment) => {
-    setSelectedAssignment(assignment);
-    setShowCreateModal(true);
-  };
+  // ── Filtering ────────────────────────────────────────────────────────────
 
-  const handleViewDetails = (assignment: Assignment) => {
-    // Navigate to assignment details or show modal
-    alert(`View details for assignment ${assignment._id}`);
-  };
-
-  const filteredAssignments = assignments.filter(assignment => {
-    const matchesSearch = 
-      assignment.organizationName.toLowerCase().includes(searchTerm.toLowerCase()) ||
-      assignment.targetUserName.toLowerCase().includes(searchTerm.toLowerCase()) ||
-      assignment.targetUserEmail.toLowerCase().includes(searchTerm.toLowerCase());
-    
-    const matchesStatus = statusFilter === 'all' || assignment.status === statusFilter;
-    
-    return matchesSearch && matchesStatus;
+  const filteredAssignments = assignments.filter(a => {
+    const q = search.toLowerCase();
+    const matchSearch = !search ||
+      (a.organizationName || '').toLowerCase().includes(q) ||
+      (a.targetUserName || `${a.targetUserFirstName} ${a.targetUserLastName}`).toLowerCase().includes(q) ||
+      (a.targetUserEmail || '').toLowerCase().includes(q);
+    const matchStatus = statusFilter === 'all' || a.status === statusFilter;
+    return matchSearch && matchStatus;
   });
+
+  const filteredVerifications = verifications.filter(v => {
+    const q = search.toLowerCase();
+    return !search ||
+      (v.organizationName || '').toLowerCase().includes(q) ||
+      (v.verificationId || '').toLowerCase().includes(q);
+  });
+
+  // ── Render ───────────────────────────────────────────────────────────────
 
   if (loading) {
     return (
-      <div className="min-h-screen bg-gray-50">
-        <div className="ml-0 md:ml-[350px] pt-8 md:pt-8 p-4 md:p-8">
-          <div className="flex justify-center items-center h-64">
-            <div className="animate-spin rounded-full h-12 w-12 border-b-2 border-[#5d2a8b]"></div>
-          </div>
+      <div className="min-h-screen bg-gray-50 flex items-center justify-center">
+        <div className="flex flex-col items-center gap-3">
+          <Loader2 className="w-8 h-8 animate-spin text-purple-600" />
+          <p className="text-sm text-gray-500">Loading assignments…</p>
         </div>
       </div>
     );
   }
 
   return (
-    <div className="min-h-screen bg-gray-50">
-      <div className="ml-0 md:ml-[350px] pt-8 md:pt-8 p-4 md:p-8">
-        <div className="max-w-7xl mx-auto">
-          {/* Header */}
-          <div className="mb-8">
-            <h1 className="text-3xl font-bold text-gray-800 mb-2">Field Agent - Data Verification</h1>
-            <p className="text-gray-600">Manage your data verification assignments</p>
-          </div>
+    <div className="min-h-screen bg-gray-50 px-4 sm:px-6 lg:px-8 py-8">
 
-          {/* Stats Cards */}
-          <div className="grid grid-cols-1 md:grid-cols-4 gap-6 mb-8">
-            <div className="bg-white rounded-xl shadow-sm border border-gray-200 p-6">
-              <div className="flex items-center justify-between">
-                <div>
-                  <p className="text-sm text-gray-600 mb-1">Total Assignments</p>
-                  <p className="text-2xl font-bold text-gray-900">{assignments.length}</p>
-                </div>
-                <div className="bg-purple-100 p-3 rounded-lg">
-                  <FileText className="w-6 h-6 text-purple-600" />
-                </div>
-              </div>
-            </div>
-
-            <div className="bg-white rounded-xl shadow-sm border border-gray-200 p-6">
-              <div className="flex items-center justify-between">
-                <div>
-                  <p className="text-sm text-gray-600 mb-1">Pending</p>
-                  <p className="text-2xl font-bold text-yellow-600">
-                    {assignments.filter(a => a.status === 'pending').length}
-                  </p>
-                </div>
-                <div className="bg-yellow-100 p-3 rounded-lg">
-                  <Clock className="w-6 h-6 text-yellow-600" />
-                </div>
-              </div>
-            </div>
-
-            <div className="bg-white rounded-xl shadow-sm border border-gray-200 p-6">
-              <div className="flex items-center justify-between">
-                <div>
-                  <p className="text-sm text-gray-600 mb-1">In Progress</p>
-                  <p className="text-2xl font-bold text-blue-600">
-                    {assignments.filter(a => a.status === 'in_progress').length}
-                  </p>
-                </div>
-                <div className="bg-blue-100 p-3 rounded-lg">
-                  <FileText className="w-6 h-6 text-blue-600" />
-                </div>
-              </div>
-            </div>
-
-            <div className="bg-white rounded-xl shadow-sm border border-gray-200 p-6">
-              <div className="flex items-center justify-between">
-                <div>
-                  <p className="text-sm text-gray-600 mb-1">Completed</p>
-                  <p className="text-2xl font-bold text-green-600">
-                    {assignments.filter(a => a.status === 'completed').length}
-                  </p>
-                </div>
-                <div className="bg-green-100 p-3 rounded-lg">
-                  <CheckCircle className="w-6 h-6 text-green-600" />
-                </div>
-              </div>
-            </div>
-          </div>
-
-          {/* Filters and Actions */}
-          <div className="bg-white rounded-xl shadow-sm border border-gray-200 p-6 mb-6">
-            <div className="flex flex-col md:flex-row md:items-center md:justify-between gap-4">
-              <div className="flex-1">
-                <div className="relative">
-                  <Search className="absolute left-3 top-1/2 transform -translate-y-1/2 text-gray-400 w-5 h-5" />
-                  <input
-                    type="text"
-                    placeholder="Search by organization, contact name, or email..."
-                    value={searchTerm}
-                    onChange={(e) => setSearchTerm(e.target.value)}
-                    className="w-full pl-10 pr-4 py-2 border border-gray-300 rounded-lg focus:ring-2 focus:ring-[#5d2a8b] focus:border-transparent"
-                  />
-                </div>
-              </div>
-
-              <div className="flex items-center gap-4">
-                <select
-                  value={statusFilter}
-                  onChange={(e) => setStatusFilter(e.target.value as any)}
-                  className="px-4 py-2 border border-gray-300 rounded-lg focus:ring-2 focus:ring-[#5d2a8b] focus:border-transparent"
-                >
-                  <option value="all">All Status</option>
-                  <option value="pending">Pending</option>
-                  <option value="in_progress">In Progress</option>
-                  <option value="completed">Completed</option>
-                </select>
-
-                <button
-                  onClick={() => setShowCreateModal(true)}
-                  disabled={filteredAssignments.length === 0}
-                  className="px-4 py-2 bg-[#5d2a8b] text-white rounded-lg hover:bg-[#7a3aa3] transition-colors disabled:opacity-50 disabled:cursor-not-allowed flex items-center gap-2"
-                >
-                  <Plus className="w-5 h-5" />
-                  Create Verification
-                </button>
-              </div>
-            </div>
-          </div>
-
-          {/* Assignments Table */}
-          <div className="bg-white rounded-xl shadow-sm border border-gray-200 overflow-hidden">
-            <div className="overflow-x-auto">
-              <table className="min-w-full divide-y divide-gray-200">
-                <thead className="bg-gray-50">
-                  <tr>
-                    <th className="px-6 py-3 text-left text-xs font-medium text-gray-500 uppercase tracking-wider">
-                      Organization
-                    </th>
-                    <th className="px-6 py-3 text-left text-xs font-medium text-gray-500 uppercase tracking-wider">
-                      Contact Person
-                    </th>
-                    <th className="px-6 py-3 text-left text-xs font-medium text-gray-500 uppercase tracking-wider">
-                      Location
-                    </th>
-                    <th className="px-6 py-3 text-left text-xs font-medium text-gray-500 uppercase tracking-wider">
-                      Status
-                    </th>
-                    <th className="px-6 py-3 text-left text-xs font-medium text-gray-500 uppercase tracking-wider">
-                      Assigned Date
-                    </th>
-                    <th className="px-6 py-3 text-right text-xs font-medium text-gray-500 uppercase tracking-wider">
-                      Actions
-                    </th>
-                  </tr>
-                </thead>
-                <tbody className="bg-white divide-y divide-gray-200">
-                  {filteredAssignments.length === 0 ? (
-                    <tr>
-                      <td colSpan={6} className="px-6 py-12 text-center text-gray-500">
-                        {error || 'No assignments found'}
-                      </td>
-                    </tr>
-                  ) : (
-                    filteredAssignments.map((assignment) => (
-                      <tr key={assignment._id} className="hover:bg-gray-50">
-                        <td className="px-6 py-4 whitespace-nowrap">
-                          <div className="flex items-center">
-                            <Building className="w-5 h-5 text-gray-400 mr-3" />
-                            <div>
-                              <div className="text-sm font-medium text-gray-900">
-                                {assignment.organizationName}
-                              </div>
-                              <div className="text-sm text-gray-500">
-                                ID: {assignment.organizationId.substring(0, 8)}...
-                              </div>
-                            </div>
-                          </div>
-                        </td>
-                        <td className="px-6 py-4 whitespace-nowrap">
-                          <div className="text-sm text-gray-900">{assignment.targetUserName}</div>
-                          <div className="text-sm text-gray-500">{assignment.targetUserEmail}</div>
-                        </td>
-                        <td className="px-6 py-4">
-                          <div className="text-sm text-gray-900">
-                            {assignment.organizationLocationDetails[0]?.city}, {assignment.organizationLocationDetails[0]?.state}
-                          </div>
-                          <div className="text-sm text-gray-500">
-                            {assignment.organizationLocationDetails.length} location(s)
-                          </div>
-                        </td>
-                        <td className="px-6 py-4 whitespace-nowrap">
-                          <div className="flex items-center">
-                            {getStatusIcon(assignment.status)}
-                            <span className={`ml-2 px-3 py-1 rounded-full text-xs font-medium ${getStatusColor(assignment.status)}`}>
-                              {assignment.status.replace('_', ' ').toUpperCase()}
-                            </span>
-                          </div>
-                        </td>
-                        <td className="px-6 py-4 whitespace-nowrap text-sm text-gray-500">
-                          {formatDate(assignment.assignedAt)}
-                        </td>
-                        <td className="px-6 py-4 whitespace-nowrap text-right text-sm font-medium">
-                          <div className="flex items-center justify-end gap-2">
-                            <button
-                              onClick={() => handleViewDetails(assignment)}
-                              className="text-gray-600 hover:text-gray-900 p-2 hover:bg-gray-100 rounded-lg transition-colors"
-                              title="View Details"
-                            >
-                              <Eye className="w-5 h-5" />
-                            </button>
-                          </div>
-                        </td>
-                      </tr>
-                    ))
-                  )}
-                </tbody>
-              </table>
-            </div>
-          </div>
+      {/* Header */}
+      <div className="flex items-center justify-between mb-6">
+        <div>
+          <h1 className="text-2xl font-bold text-gray-900">Field Agent — Data Verification</h1>
+          <p className="text-sm text-gray-500 mt-0.5">Manage your data verification assignments</p>
         </div>
+        <button
+          onClick={loadAll}
+          className="flex items-center gap-2 px-4 py-2 bg-purple-600 text-white rounded-xl hover:bg-purple-700 transition-colors text-sm font-semibold"
+        >
+          <RefreshCw className="w-4 h-4" /> Refresh
+        </button>
       </div>
 
-      {/* Create Verification Modal */}
-      {showCreateModal && selectedAssignment && (
-        <CreateVerificationModal
-          assignment={selectedAssignment}
-          onClose={() => {
-            setShowCreateModal(false);
-            setSelectedAssignment(null);
-            fetchAssignments();
-          }}
-          token={token!}
-        />
+      {/* Error */}
+      {error && (
+        <div className="mb-4 flex items-center gap-2 bg-red-50 border border-red-200 rounded-xl px-4 py-3 text-sm text-red-700">
+          <AlertCircle className="w-4 h-4 shrink-0" /> {error}
+        </div>
       )}
-    </div>
-  );
-};
 
-// Create Verification Modal Component
-interface CreateVerificationModalProps {
-  assignment: Assignment;
-  onClose: () => void;
-  token: string;
-}
-
-const CreateVerificationModal: React.FC<CreateVerificationModalProps> = ({ assignment, onClose, token }) => {
-  const router = useRouter();
-  const [loading, setLoading] = useState(false);
-  const [formData, setFormData] = useState({
-    country: 'Nigeria',
-    state: '',
-    lga: '',
-    city: '',
-    cityRegion: '',
-    targetUserFirstName: '',
-    targetUserLastName: '',
-    headquartersAddress: '',
-  });
-
-  const handleSubmit = async (e: React.FormEvent) => {
-    e.preventDefault();
-    setLoading(true);
-
-    try {
-      const verificationData = {
-        assignmentId: assignment._id,
-        ...formData,
-        organizationId: assignment.organizationId,
-        organizationName: assignment.organizationName,
-        targetUserId: assignment.targetUserId,
-        organizationClaimedLocation: {
-          locationType: 'headquarters' as const,
-          country: formData.country,
-          state: formData.state,
-          lga: formData.lga,
-          city: formData.city,
-          cityRegion: formData.cityRegion,
-        },
-        organizationDetails: {
-          name: assignment.organizationName,
-          headquartersAddress: formData.headquartersAddress,
-        },
-      };
-
-      const service = new DataVerificationService();
-      const response = await service.createVerification(verificationData, token);
-
-      if (response.success) {
-        alert('Verification created successfully! Assignment status updated to in_progress.');
-        onClose();
-        router.push('/admin/data-verification/field-agent');
-      } else {
-        alert(response.message || 'Failed to create verification');
-      }
-    } catch (error) {
-      console.error('Error creating verification:', error);
-      alert('An error occurred while creating verification');
-    } finally {
-      setLoading(false);
-    }
-  };
-
-  return (
-    <div className="fixed inset-0 bg-black bg-opacity-50 flex items-center justify-center z-50 p-4">
-      <div className="bg-white rounded-xl max-w-4xl w-full max-h-[90vh] overflow-y-auto">
-        <div className="p-6 border-b border-gray-200">
-          <h2 className="text-2xl font-bold text-gray-900">Create Verification</h2>
-          <p className="text-sm text-gray-600 mt-1">Organization: {assignment.organizationName}</p>
-        </div>
-
-        <form onSubmit={handleSubmit} className="p-6">
-          <div className="grid grid-cols-1 md:grid-cols-2 gap-6">
-            {/* Contact Information */}
+      {/* Stats */}
+      <div className="grid grid-cols-2 sm:grid-cols-4 gap-4 mb-6">
+        {stats.map(s => (
+          <div key={s.label} className="bg-white rounded-2xl border border-gray-100 shadow-sm p-4 flex items-center gap-3">
+            <div className={`w-10 h-10 rounded-xl ${s.bg} flex items-center justify-center shrink-0`}>{s.icon}</div>
             <div>
-              <h3 className="text-lg font-semibold text-gray-900 mb-4">Contact Information</h3>
-              
-              <div className="space-y-4">
-                <div>
-                  <label className="block text-sm font-medium text-gray-700 mb-1">
-                    First Name *
-                  </label>
-                  <input
-                    type="text"
-                    required
-                    value={formData.targetUserFirstName}
-                    onChange={(e) => setFormData({...formData, targetUserFirstName: e.target.value})}
-                    className="w-full px-3 py-2 border border-gray-300 rounded-lg focus:ring-2 focus:ring-[#5d2a8b] focus:border-transparent"
-                    placeholder="Enter first name"
-                  />
-                </div>
-
-                <div>
-                  <label className="block text-sm font-medium text-gray-700 mb-1">
-                    Last Name *
-                  </label>
-                  <input
-                    type="text"
-                    required
-                    value={formData.targetUserLastName}
-                    onChange={(e) => setFormData({...formData, targetUserLastName: e.target.value})}
-                    className="w-full px-3 py-2 border border-gray-300 rounded-lg focus:ring-2 focus:ring-[#5d2a8b] focus:border-transparent"
-                    placeholder="Enter last name"
-                  />
-                </div>
-              </div>
-            </div>
-
-            {/* Location Information */}
-            <div>
-              <h3 className="text-lg font-semibold text-gray-900 mb-4">Location Information</h3>
-              
-              <div className="space-y-4">
-                <div>
-                  <label className="block text-sm font-medium text-gray-700 mb-1">
-                    State *
-                  </label>
-                  <input
-                    type="text"
-                    required
-                    value={formData.state}
-                    onChange={(e) => setFormData({...formData, state: e.target.value})}
-                    className="w-full px-3 py-2 border border-gray-300 rounded-lg focus:ring-2 focus:ring-[#5d2a8b] focus:border-transparent"
-                    placeholder="e.g., Lagos"
-                  />
-                </div>
-
-                <div>
-                  <label className="block text-sm font-medium text-gray-700 mb-1">
-                    LGA *
-                  </label>
-                  <input
-                    type="text"
-                    required
-                    value={formData.lga}
-                    onChange={(e) => setFormData({...formData, lga: e.target.value})}
-                    className="w-full px-3 py-2 border border-gray-300 rounded-lg focus:ring-2 focus:ring-[#5d2a8b] focus:border-transparent"
-                    placeholder="e.g., Ikeja"
-                  />
-                </div>
-
-                <div>
-                  <label className="block text-sm font-medium text-gray-700 mb-1">
-                    City *
-                  </label>
-                  <input
-                    type="text"
-                    required
-                    value={formData.city}
-                    onChange={(e) => setFormData({...formData, city: e.target.value})}
-                    className="w-full px-3 py-2 border border-gray-300 rounded-lg focus:ring-2 focus:ring-[#5d2a8b] focus:border-transparent"
-                    placeholder="e.g., Ikeja"
-                  />
-                </div>
-
-                <div>
-                  <label className="block text-sm font-medium text-gray-700 mb-1">
-                    City Region/Street
-                  </label>
-                  <input
-                    type="text"
-                    value={formData.cityRegion}
-                    onChange={(e) => setFormData({...formData, cityRegion: e.target.value})}
-                    className="w-full px-3 py-2 border border-gray-300 rounded-lg focus:ring-2 focus:ring-[#5d2a8b] focus:border-transparent"
-                    placeholder="e.g., Allen Avenue"
-                  />
-                </div>
-              </div>
-            </div>
-
-            {/* Headquarters Address */}
-            <div className="md:col-span-2">
-              <label className="block text-sm font-medium text-gray-700 mb-1">
-                Headquarters Address
-              </label>
-              <textarea
-                value={formData.headquartersAddress}
-                onChange={(e) => setFormData({...formData, headquartersAddress: e.target.value})}
-                rows={3}
-                className="w-full px-3 py-2 border border-gray-300 rounded-lg focus:ring-2 focus:ring-[#5d2a8b] focus:border-transparent"
-                placeholder="Enter full headquarters address"
-              />
+              <p className="text-2xl font-bold text-gray-900">{s.value}</p>
+              <p className="text-xs text-gray-500">{s.label}</p>
             </div>
           </div>
-
-          <div className="mt-6 flex justify-end gap-3">
-            <button
-              type="button"
-              onClick={onClose}
-              disabled={loading}
-              className="px-6 py-2 border border-gray-300 rounded-lg text-gray-700 hover:bg-gray-50 transition-colors"
-            >
-              Cancel
-            </button>
-            <button
-              type="submit"
-              disabled={loading}
-              className={`px-6 py-2 bg-[#5d2a8b] text-white rounded-lg hover:bg-[#7a3aa3] transition-colors ${
-                loading ? 'opacity-50 cursor-not-allowed' : ''
-              }`}
-            >
-              {loading ? 'Creating...' : 'Create Verification'}
-            </button>
-          </div>
-        </form>
+        ))}
       </div>
+
+      {/* Tabs */}
+      <div className="flex gap-1 bg-gray-100 rounded-xl p-1 mb-6 w-fit">
+        {(['assignments', 'verifications'] as const).map(t => (
+          <button
+            key={t}
+            onClick={() => setTab(t)}
+            className={`px-5 py-2 rounded-lg text-sm font-semibold transition-all ${
+              tab === t ? 'bg-white text-purple-700 shadow-sm' : 'text-gray-500 hover:text-gray-700'
+            }`}
+          >
+            {t === 'assignments' ? 'My Assignments' : 'My Verifications'}
+          </button>
+        ))}
+      </div>
+
+      {/* Search + Filter */}
+      <div className="bg-white rounded-2xl border border-gray-100 shadow-sm p-4 mb-4 flex flex-col sm:flex-row gap-3">
+        <div className="relative flex-1">
+          <Search className="absolute left-3 top-1/2 -translate-y-1/2 w-4 h-4 text-purple-400" />
+          <input
+            type="text"
+            placeholder={tab === 'assignments' ? 'Search organization or contact…' : 'Search verification ID or org…'}
+            value={search}
+            onChange={e => setSearch(e.target.value)}
+            className="w-full pl-9 pr-4 py-2.5 border border-gray-200 rounded-xl text-sm focus:outline-none focus:border-purple-500"
+          />
+        </div>
+        {tab === 'assignments' && (
+          <select
+            value={statusFilter}
+            onChange={e => setStatusFilter(e.target.value)}
+            className="border border-gray-200 rounded-xl px-3 py-2.5 text-sm focus:outline-none focus:border-purple-500"
+          >
+            <option value="all">All Statuses</option>
+            <option value="pending">Pending</option>
+            <option value="in_progress">In Progress</option>
+            <option value="completed">Completed</option>
+          </select>
+        )}
+      </div>
+
+      {/* ── My Assignments Table ── */}
+      {tab === 'assignments' && (
+        <div className="bg-white rounded-2xl border border-gray-100 shadow-sm overflow-hidden">
+          <div className="overflow-x-auto">
+            <table className="min-w-full divide-y divide-gray-100">
+              <thead className="bg-gray-50">
+                <tr>
+                  {['Organization', 'Target', 'Locations', 'Assigned Date', 'Status', 'Actions'].map(h => (
+                    <th key={h} className="px-5 py-3.5 text-left text-xs font-semibold text-gray-500 uppercase tracking-wider whitespace-nowrap">
+                      {h}
+                    </th>
+                  ))}
+                </tr>
+              </thead>
+              <tbody className="divide-y divide-gray-100">
+                {filteredAssignments.length === 0 ? (
+                  <tr>
+                    <td colSpan={6} className="px-5 py-14 text-center">
+                      <Building className="w-10 h-10 text-purple-300 mx-auto mb-2" />
+                      <p className="text-sm text-gray-500">No assignments found</p>
+                    </td>
+                  </tr>
+                ) : filteredAssignments.map(a => (
+                  <tr key={a._id} className="hover:bg-gray-50 transition-colors">
+
+                    {/* Organization */}
+                    <td className="px-5 py-4">
+                      <div className="flex items-center gap-3">
+                        <div className="w-8 h-8 rounded-lg bg-purple-100 flex items-center justify-center shrink-0">
+                          <Building className="w-4 h-4 text-purple-600" />
+                        </div>
+                        <div>
+                          <p className="text-sm font-semibold text-gray-900">{a.organizationName}</p>
+                          <p className="text-xs text-gray-400 font-mono">{a._id.slice(-8)}</p>
+                        </div>
+                      </div>
+                    </td>
+
+                    {/* Target */}
+                    <td className="px-5 py-4">
+                      <p className="text-sm text-gray-800">{a.targetUserName || `${a.targetUserFirstName || ''} ${a.targetUserLastName || ''}`.trim() || '—'}</p>
+                      {a.targetUserEmail && <p className="text-xs text-gray-400">{a.targetUserEmail}</p>}
+                    </td>
+
+                    {/* Locations count */}
+                    <td className="px-5 py-4 whitespace-nowrap">
+                      <div className="flex items-center gap-1.5">
+                        <MapPin className="w-3.5 h-3.5 text-purple-400" />
+                        <span className="text-sm text-gray-700">{a.organizationLocationDetails?.length ?? 0} location{(a.organizationLocationDetails?.length ?? 0) !== 1 ? 's' : ''}</span>
+                      </div>
+                    </td>
+
+                    {/* Date */}
+                    <td className="px-5 py-4 whitespace-nowrap text-sm text-gray-500">
+                      {fmtDate(a.assignedAt)}
+                    </td>
+
+                    {/* Status */}
+                    <td className="px-5 py-4 whitespace-nowrap">
+                      <StatusBadge status={a.status} />
+                    </td>
+
+                    {/* Actions */}
+                    <td className="px-5 py-4 whitespace-nowrap">
+                      <div className="flex items-center gap-2">
+                        <button
+                          onClick={() => router.push(`/admin/data-verification/field-agent/${a._id}?type=assignment`)}
+                          className="inline-flex items-center gap-1 px-3 py-1.5 text-xs font-medium text-purple-600 border border-purple-200 rounded-lg hover:bg-purple-50 transition-colors"
+                        >
+                          <Eye className="w-3.5 h-3.5" /> View
+                        </button>
+                        {a.status === 'pending' && (
+                          <button
+                            onClick={() => router.push(`/admin/data-verification/field-agent/create?assignmentId=${a._id}`)}
+                            className="inline-flex items-center gap-1 px-3 py-1.5 text-xs font-semibold text-white bg-purple-600 rounded-lg hover:bg-purple-700 transition-colors"
+                          >
+                            <Play className="w-3.5 h-3.5" /> Start
+                          </button>
+                        )}
+                      </div>
+                    </td>
+                  </tr>
+                ))}
+              </tbody>
+            </table>
+          </div>
+          <div className="px-5 py-3 bg-gray-50 border-t border-gray-100">
+            <p className="text-xs text-gray-400">{filteredAssignments.length} assignment{filteredAssignments.length !== 1 ? 's' : ''}</p>
+          </div>
+        </div>
+      )}
+
+      {/* ── My Verifications Table ── */}
+      {tab === 'verifications' && (
+        <div className="bg-white rounded-2xl border border-gray-100 shadow-sm overflow-hidden">
+          <div className="overflow-x-auto">
+            <table className="min-w-full divide-y divide-gray-100">
+              <thead className="bg-gray-50">
+                <tr>
+                  {['Verification ID', 'Organization', 'Status', 'Created', 'Actions'].map(h => (
+                    <th key={h} className="px-5 py-3.5 text-left text-xs font-semibold text-gray-500 uppercase tracking-wider whitespace-nowrap">
+                      {h}
+                    </th>
+                  ))}
+                </tr>
+              </thead>
+              <tbody className="divide-y divide-gray-100">
+                {filteredVerifications.length === 0 ? (
+                  <tr>
+                    <td colSpan={5} className="px-5 py-14 text-center">
+                      <FileText className="w-10 h-10 text-purple-300 mx-auto mb-2" />
+                      <p className="text-sm text-gray-500">No verifications found</p>
+                    </td>
+                  </tr>
+                ) : filteredVerifications.map(v => (
+                  <tr key={v._id} className="hover:bg-gray-50 transition-colors">
+
+                    {/* Verification ID */}
+                    <td className="px-5 py-4 whitespace-nowrap">
+                      <span className="text-sm font-semibold text-purple-700 font-mono">
+                        {v.verificationId || v._id.slice(-10)}
+                      </span>
+                    </td>
+
+                    {/* Org */}
+                    <td className="px-5 py-4">
+                      <p className="text-sm text-gray-800">{v.organizationName || '—'}</p>
+                    </td>
+
+                    {/* Status */}
+                    <td className="px-5 py-4 whitespace-nowrap">
+                      {v.status ? <StatusBadge status={v.status} /> : <span className="text-xs text-gray-400">—</span>}
+                    </td>
+
+                    {/* Date */}
+                    <td className="px-5 py-4 whitespace-nowrap text-sm text-gray-500">
+                      {fmtDate(v.createdAt)}
+                    </td>
+
+                    {/* Actions */}
+                    <td className="px-5 py-4 whitespace-nowrap">
+                      <button
+                        onClick={() => router.push(`/admin/data-verification/field-agent/${v._id}?type=verification`)}
+                        className="inline-flex items-center gap-1 px-3 py-1.5 text-xs font-medium text-purple-600 border border-purple-200 rounded-lg hover:bg-purple-50 transition-colors"
+                      >
+                        <Eye className="w-3.5 h-3.5" /> View Details
+                      </button>
+                    </td>
+                  </tr>
+                ))}
+              </tbody>
+            </table>
+          </div>
+          <div className="px-5 py-3 bg-gray-50 border-t border-gray-100">
+            <p className="text-xs text-gray-400">{filteredVerifications.length} verification{filteredVerifications.length !== 1 ? 's' : ''}</p>
+          </div>
+        </div>
+      )}
     </div>
   );
 };

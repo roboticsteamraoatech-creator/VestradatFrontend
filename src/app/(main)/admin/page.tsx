@@ -1,7 +1,6 @@
 "use client";
 
 import React, { useState, useEffect, useCallback } from 'react';
-import { MeasurementTopNav } from '@/app/components/MeasurementTopNav';
 import { useRouter } from 'next/navigation';
 import Image from 'next/image';
 import { AdminMeasurementService } from '@/services/AdminMeasurementService';
@@ -24,7 +23,7 @@ const QUICK_ACTIONS = [
   { label: 'Settlements', icon: CheckSquare, route: '/admin/settlement/provider-settlement', color: 'bg-cyan-50 text-cyan-600' },
   { label: 'Bookings', icon: Settings, route: '/admin/booking', color: 'bg-violet-50 text-violet-600' },
   { label: 'All Bookings', icon: Bell, route: '/admin/booking-management', color: 'bg-rose-50 text-rose-600' },
-  { label: 'Completed Tasks', icon: CheckSquare, route: '/admin/completed-tasks', color: 'bg-emerald-50 text-emerald-600' },
+  // { label: 'Completed Tasks', icon: CheckSquare, route: '/admin/completed-tasks', color: 'bg-emerald-50 text-emerald-600' },
   { label: 'Org Profile', icon: Building, route: '/admin/subscription/verification-badge', color: 'bg-amber-50 text-amber-600' },
   { label: 'My Locations', icon: MapPin, route: '/admin/subscription/verification-badge', color: 'bg-purple-50 text-purple-600' },
   { label: 'Subscription', icon: Key, route: '/admin/subscription', color: 'bg-fuchsia-50 text-fuchsia-600' },
@@ -56,13 +55,6 @@ const AdminDashboard = () => {
     icon: string | React.ReactNode;
   }
   
-  const currentMeasurement = {
-    chest: '95 cm',
-    waist: '82 cm',
-    hips: '98 cm',
-    legs: '88 cm'
-  };
-
   // Fixed useEffect – no infinite loading
   useEffect(() => {
     let isMounted = true;
@@ -133,12 +125,35 @@ const AdminDashboard = () => {
       `}</style>
 
 
-      <MeasurementTopNav
-        title="Current system metrics"
-        measurements={currentMeasurement}
-      />
-
       <div className="px-4 md:px-6 py-4">
+
+        {/* Welcome Banner */}
+        <div
+          className="flex items-center justify-between rounded-2xl p-5 mb-6"
+          style={{ background: 'linear-gradient(135deg, #5D2A8B 0%, #7C3AB8 100%)' }}
+        >
+          <div>
+            <p className="manrope text-xs font-medium mb-1" style={{ color: 'rgba(255,255,255,0.65)' }}>
+              {new Date().toLocaleDateString('en-NG', { weekday: 'long', day: 'numeric', month: 'long' })}
+            </p>
+            <h2 className="manrope text-2xl md:text-3xl font-extrabold text-white leading-tight">
+              {user?.fullName || `${(user as any)?.firstName || ''} ${(user as any)?.lastName || ''}`.trim() || 'Admin'}
+            </h2>
+            <p className="manrope text-xs mt-0.5 capitalize" style={{ color: 'rgba(255,255,255,0.55)' }}>
+              {(user as any)?.role?.toLowerCase().replace(/_/g, ' ') || 'Administrator'}
+            </p>
+          </div>
+          <button
+            onClick={() => router.push('/admin/profile')}
+            className="w-14 h-14 rounded-full flex items-center justify-center flex-shrink-0 transition-all hover:scale-105 cursor-pointer"
+            style={{ background: 'rgba(255,255,255,0.2)', border: '2px solid rgba(255,255,255,0.35)' }}
+          >
+            <span className="manrope text-white font-bold text-2xl">
+              {((user as any)?.fullName || (user as any)?.firstName || 'A')[0]?.toUpperCase()}
+            </span>
+          </button>
+        </div>
+
         <div className="flex items-center justify-between mb-4">
           <h2 className="manrope text-xl md:text-2xl font-semibold text-gray-800">Overview</h2>
           {loading && (

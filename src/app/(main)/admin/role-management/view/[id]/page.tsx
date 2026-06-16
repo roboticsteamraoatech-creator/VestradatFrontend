@@ -65,7 +65,7 @@ const ViewRolePage = () => {
 
   if (loading) {
     return (
-      <div className="manrope ml-0 md:ml-[350px] pt-8 md:pt-8 p-4 md:p-8 min-h-screen">
+      <div className="manrope pt-8 p-4 md:p-8 min-h-screen">
         <div className="max-w-4xl mx-auto">
           <button 
             onClick={() => router.back()}
@@ -86,7 +86,7 @@ const ViewRolePage = () => {
   
   if (!role) {
     return (
-      <div className="manrope ml-0 md:ml-[350px] pt-8 md:pt-8 p-4 md:p-8 min-h-screen">
+      <div className="manrope pt-8 p-4 md:p-8 min-h-screen">
         <div className="max-w-4xl mx-auto">
           <button 
             onClick={() => router.back()}
@@ -112,7 +112,7 @@ const ViewRolePage = () => {
         .manrope { font-family: 'Manrope', sans-serif; }
       `}</style>
 
-      <div className="ml-0 md:ml-[350px] pt-8 md:pt-8 p-4 md:p-8 min-h-screen">
+      <div className="pt-8 p-4 md:p-8 min-h-screen">
         <div className="max-w-4xl mx-auto">
           {/* Header */}
           <div className="mb-6">

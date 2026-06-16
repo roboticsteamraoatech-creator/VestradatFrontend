@@ -113,12 +113,16 @@ export const UserTopBar = () => {
 
           {/* Avatar and Dropdown */}
           <div className="relative" ref={dropdownRef}>
-            <div className="flex items-center gap-1.5">
-              <button
-                type="button"
-                onClick={() => router.push('/admin/profile')}
-                className="relative overflow-hidden flex items-center justify-center w-[40px] h-[40px] rounded-full bg-[#6D1E1E] cursor-pointer hover:opacity-90 transition-opacity"
-              >
+            <button
+              type="button"
+              className="flex items-center gap-1.5 cursor-pointer bg-transparent border-none p-0"
+              onClick={(e) => {
+                e.preventDefault();
+                e.stopPropagation();
+                setShowDropdown(!showDropdown);
+              }}
+            >
+              <div className="relative overflow-hidden flex items-center justify-center w-[40px] h-[40px] rounded-full bg-[#6D1E1E] hover:opacity-90 transition-opacity">
                 <Image
                   src="/Frame 1707479300.png"
                   alt="User Avatar"
@@ -126,19 +130,9 @@ export const UserTopBar = () => {
                   height={40}
                   className="object-cover"
                 />
-              </button>
-              <button
-                type="button"
-                className="cursor-pointer bg-transparent border-none p-0"
-                onClick={(e) => {
-                  e.preventDefault();
-                  e.stopPropagation();
-                  setShowDropdown(!showDropdown);
-                }}
-              >
-                <ChevronDown className="text-gray-600 w-[22px] h-[22px]" />
-              </button>
-            </div>
+              </div>
+              <ChevronDown className="text-gray-600 w-[22px] h-[22px]" />
+            </button>
 
             {showDropdown && (
               <div
