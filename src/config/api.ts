@@ -3,5 +3,4 @@
  * Set NEXT_PUBLIC_BACKEND_API in your .env.local to override.
  */
 export const BASE_URL =
-  process.env.NEXT_PUBLIC_BACKEND_API ||
-  'https://datacapture-backend.onrender.com';
+  process.env.NEXT_PUBLIC_BACKEND_API;
